@@ -4,11 +4,10 @@ export default {
     return {
       money: null,
       months: null,
-      rows: [{ category: "", percentage: "" }],
+      rows: [{ category: "", percentage: "", amountspent: "", totalSpent: 0 }],
     };
   },
   computed: {
-    // calculates monthly budget
     month_budg() {
       if (this.money > 0 && this.months > 0) {
         return Math.round((this.money / this.months) * 100) / 100;
@@ -17,21 +16,14 @@ export default {
       }
     },
     category_budg() {
-      // if there is a category and percentage present
       return this.rows.map((row) => {
-
         if (row.category && row.percentage) {
           const percentage = parseFloat(row.percentage) || 0;
-
-          const allocatedBudget = parseFloat(
-            (percentage / 100) * this.month_budg
-          );
-
+          const allocatedBudget = (percentage / 100) * this.month_budg;
           return {
             category: row.category,
             budg: allocatedBudget.toFixed(2),
           };
-          // if there is no category and percentage present
         } else {
           return {
             category: "",
@@ -44,10 +36,9 @@ export default {
       return this.rows.reduce((total, row) => total + (parseFloat(row.percentage) || 0), 0);
     },
   },
-
   methods: {
     addrow() {
-      this.rows.push({ category: "", percentage: "" });
+      this.rows.push({ category: "", percentage: "", amountspent: "", totalSpent: 0 });
     },
     deleterow(index) {
       if (this.rows.length > 1) {
@@ -55,14 +46,23 @@ export default {
       }
     },
     resetrows() {
-      this.rows = [{ category: "", percentage: "" }];
+      this.rows = [{ category: "", percentage: "", amountspent: "", totalSpent: 0 }];
     },
     limitpercentage(row) {
       if (this.percent_pool > 100) {
         alert("Exceeded 100% of budget");
         row.percentage = "";
       }
-    }
+    },
+    spendamount(row) {
+      const amount = parseFloat(row.amountspent) || 0;
+      if (amount >= 0) {
+        row.totalSpent += amount;
+        row.amountspent = ""; // Clear input after adding
+      } else {
+        alert("Invalid spent amount");
+      }
+    },
   },
 };
 </script>
@@ -108,14 +108,14 @@ export default {
     </div>
 
     <label class="block text-center bg-orange-400 w-full font-bold">Spendings</label>
-    <div v-for="(budget, index) in category_budg" :key="'budget- ' + index" class="flex justify-between w-full">
+    <div v-for="(budget, index) in category_budg" :key="'budget-' + index" class="flex justify-between w-full">
       <p class="w-full bg-orange-100" v-if="budget.category && budget.budg > 0">
-        {{ budget.category }}: ${{ budget.budg }}
+        {{ budget.category }}: ${{ (budget.budg - rows[index].totalSpent).toFixed(2) }}
       </p>
-      <input v-if="budget.category && budget.budg > 0" class="w-full border-2 border-red-500"
-        placeholder="Amount Spent"></input>
-      <button v-if="budget.category && budget.budg > 0"
-        class="bg-red-500 border-2 border-red-500 text-lg">&#x2705</button>
+      <input v-model.number="rows[index].amountspent" type="number" v-if="budget.category && budget.budg > 0"
+        class="w-full border-2 border-red-500" placeholder="Amount Spent" />
+      <button v-if="budget.category && budget.budg > 0" class="bg-red-500 border-2 border-red-500 text-lg"
+        @click="spendamount(rows[index])">&#x2705;</button>
     </div>
   </div>
 </template>
