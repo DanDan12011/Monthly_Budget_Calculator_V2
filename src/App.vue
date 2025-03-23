@@ -8,6 +8,7 @@ export default {
     };
   },
   computed: {
+    // calculates monthly budget
     month_budg() {
       if (this.money > 0 && this.months > 0) {
         return Math.round((this.money / this.months) * 100) / 100;
@@ -16,7 +17,9 @@ export default {
       }
     },
     category_budg() {
+      // if there is a category and percentage present
       return this.rows.map((row) => {
+
         if (row.category && row.percentage) {
           const percentage = parseFloat(row.percentage) || 0;
 
@@ -28,6 +31,7 @@ export default {
             category: row.category,
             budg: allocatedBudget.toFixed(2),
           };
+          // if there is no category and percentage present
         } else {
           return {
             category: "",
@@ -36,7 +40,11 @@ export default {
         }
       });
     },
+    percent_pool() {
+      return this.rows.reduce((total, row) => total + (parseFloat(row.percentage) || 0), 0);
+    },
   },
+
   methods: {
     addrow() {
       this.rows.push({ category: "", percentage: "" });
@@ -49,6 +57,12 @@ export default {
     resetrows() {
       this.rows = [{ category: "", percentage: "" }];
     },
+    limitpercentage(row) {
+      if (this.percent_pool > 100) {
+        alert("Exceeded 100% of budget");
+        row.percentage = "";
+      }
+    }
   },
 };
 </script>
@@ -56,86 +70,52 @@ export default {
 <template>
   <div class="flex flex-col items-center justify-center w-96 mx-auto ">
     <h1 class="text-lg font-bold">Monthly Budget Calculator</h1>
-    <label class="bg-green-600 text-black p-1 w-full block text-center font-bold"
-      >Money</label
-    >
-    <input
-      placeholder="Amount of Money"
-      class="text-black border-2 border-black block text-center w-full"
-      type="number"
-      v-model="money"
-    />
-    <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center"
-      >Months</label
-    >
-    <input
-      placeholder="Number of Months"
-      class="text-black border-2 border-black w-full block text-center"
-      type="number"
-      v-model="months"
-    />
-    <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center"
-      >Monthly Budget</label
-    >
-    <p
-      class="bg-green-200 border-black border-2 p-2 text-black w-full block text-center"
-    >
+    <label class="bg-green-600 text-black p-1 w-full block text-center font-bold">Money</label>
+    <input placeholder="Amount of Money" class="text-black border-2 border-black block text-center w-full" type="number"
+      v-model="money" />
+    <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center">Months</label>
+    <input placeholder="Number of Months" class="text-black border-2 border-black w-full block text-center"
+      type="number" v-model="months" />
+    <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center">Monthly Budget</label>
+    <p class="bg-green-200 border-black border-2 p-2 text-black w-full block text-center">
       ${{ month_budg }}
     </p>
   </div>
 
   <!-- categories and percentages -->
   <div class="flex flex-col items-center justify-center w-96 mx-auto">
-    <label class="block text-center bg-blue-400 w-full font-bold">Categories</label>
+    <div class="flex justify-between w-full">
+      <label class="block text-center bg-blue-400 w-full font-bold">Categories</label>
+      <label class="block text-center bg-blue-400 w-full font-bold">%: {{ percent_pool }}</label>
+    </div>
     <div class="flex w-full gap4">
       <button @click="addrow" class="border-2 bg-green-400 border-black flex-1">
         Add Row
       </button>
-      <button
-        @click="deleterow(index)"
-        class="border-2 bg-red-400 border-black flex-1"
-      >
+      <button @click="deleterow(index)" class="border-2 bg-red-400 border-black flex-1">
         Delete Row
       </button>
-      <button
-        @click="resetrows"
-        class="border-2 bg-yellow-400 border-black flex-1"
-      >
+      <button @click="resetrows" class="border-2 bg-yellow-400 border-black flex-1">
         Reset
       </button>
     </div>
 
     <!-- rows for each category and percentage -->
-    <div
-      v-for="(rows, index) in rows"
-      :key="index"
-      class="flex justify-between w-full"
-    >
-      <input
-        v-model="rows.category"
-        placeholder="Category"
-        class="border-2 border-black w-full"
-      />
-      <input
-        v-model.number="rows.percentage"
-        placeholder="Percent"
-        type="number"
-        class="border-2 border-black w-full"
-      />
+    <div v-for="(rows, index) in rows" :key="index" class="flex justify-between w-full">
+      <input v-model="rows.category" placeholder="Category" class="border-2 border-black w-full" />
+      <input v-model.number="rows.percentage" placeholder="Percent" type="number" class="border-2 border-black w-full"
+        @input="limitpercentage(rows)" />
     </div>
 
     <label class="block text-center bg-orange-400 w-full font-bold">Spendings</label>
-    <div
-      v-for="(budget, index) in category_budg"
-      :key="'budget- ' + index"
-      class="flex justify-between w-full"
-      
-    >
+    <div v-for="(budget, index) in category_budg" :key="'budget- ' + index" class="flex justify-between w-full">
       <p class="w-full bg-orange-100" v-if="budget.category && budget.budg > 0">
         {{ budget.category }}: ${{ budget.budg }}
       </p>
-      <input v-if="budget.category && budget.budg > 0" class="w-full border-2 border-red-500" placeholder="Amount Spent"></input>
-      <button v-if="budget.category && budget.budg > 0" class="bg-red-500 border-2 border-red-500 text-lg">&#x2705</button>
+      <input v-if="budget.category && budget.budg > 0" class="w-full border-2 border-red-500"
+        placeholder="Amount Spent"></input>
+      <button v-if="budget.category && budget.budg > 0"
+        class="bg-red-500 border-2 border-red-500 text-lg">&#x2705</button>
     </div>
   </div>
 </template>
