@@ -5,6 +5,7 @@ export default {
       money: null,
       months: null,
       rows: [{ category: "", percentage: "", amountspent: "", totalSpent: 0 }],
+      showhistory: false,
     };
   },
   computed: {
@@ -68,7 +69,8 @@ export default {
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center w-96 mx-auto ">
+  <!-- money and months input -->
+  <div class="flex flex-col items-center justify-center w-full mx-auto">
     <h1 class="text-lg font-bold">Monthly Budget Calculator</h1>
     <label class="bg-green-600 text-black p-1 w-full block text-center font-bold">Money</label>
     <input placeholder="Amount of Money" class="text-black border-2 border-black block text-center w-full" type="number"
@@ -80,33 +82,31 @@ export default {
     <p class="bg-green-200 border-black border-2 p-2 text-black w-full block text-center">
       ${{ month_budg }}
     </p>
-  </div>
 
-  <!-- categories and percentages -->
-  <div class="flex flex-col items-center justify-center w-96 mx-auto">
+    <!-- categories and percentages -->
     <div class="flex justify-between w-full">
       <label class="block text-center bg-blue-400 w-full font-bold">Categories</label>
       <label class="block text-center bg-blue-400 w-full font-bold">%: {{ percent_pool }}</label>
     </div>
-    <div class="flex w-full gap4">
-      <button @click="addrow" class="border-2 bg-green-400 border-black flex-1">
+    <div class="flex w-full">
+      <!-- add, delete, reset buttons -->
+      <button @click="addrow" class="border-2 bg-green-400 border-black flex-1 p-2">
         Add Row
       </button>
-      <button @click="deleterow(index)" class="border-2 bg-red-400 border-black flex-1">
+      <button @click="deleterow(index)" class="border-2 bg-red-400 border-black flex-1 p-2">
         Delete Row
       </button>
-      <button @click="resetrows" class="border-2 bg-yellow-400 border-black flex-1">
+      <button @click="resetrows" class="border-2 bg-yellow-400 border-black flex-1 p-2">
         Reset
       </button>
     </div>
-
     <!-- rows for each category and percentage -->
     <div v-for="(rows, index) in rows" :key="index" class="flex justify-between w-full">
       <input v-model="rows.category" placeholder="Category" class="border-2 border-black w-full" />
       <input v-model.number="rows.percentage" placeholder="Percent" type="number" class="border-2 border-black w-full"
         @input="limitpercentage(rows)" />
     </div>
-
+    <!-- spendings  -->
     <label class="block text-center bg-orange-400 w-full font-bold">Spendings</label>
     <div v-for="(budget, index) in category_budg" :key="'budget-' + index" class="flex justify-between w-full">
       <p class="w-full bg-orange-100" v-if="budget.category && budget.budg > 0">
@@ -117,5 +117,21 @@ export default {
       <button v-if="budget.category && budget.budg > 0" class="bg-red-500 border-2 border-red-500 text-lg"
         @click="spendamount(rows[index])">&#x2705;</button>
     </div>
+    <!-- history -->
+    <label @click="showhistory = !showhistory"
+      class="block text-center bg- w-full bg-indigo-400 font-bold cursor-pointer">History <span>{{ showhistory ?
+        '\u25BC'
+        : '\u25B6' }}</span></label>
+
+    <div v-show="showhistory" class="w-full">
+      <div v-for="(category, index) in category_budg" :key="'history-' + index"
+        class="w-full border-2 border-black flex justify-between">
+        <p v-if="rows[index].totalSpent > 0" class=" font-bold text-center w-full bg-indigo-100">{{ category.category
+          }}:
+        </p>
+        <p class=" text-center w-full bg-indigo-100">-${{ rows[index].totalSpent }}</p>
+      </div>
+    </div>
+
   </div>
 </template>
