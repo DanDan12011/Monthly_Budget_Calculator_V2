@@ -101,12 +101,12 @@ export default {
 <template>
   <!-- money and months input -->
   <div class="flex flex-col items-center justify-center w-full">
-    <h1 class="text-lg font-bold">Monthly Budget Calculator</h1>
+    <h1 class="font-bold">Monthly Budget Calculator</h1>
     <label class="bg-green-600 text-black p-1 w-full block text-center font-bold">Money</label>
-    <input placeholder="Amount of Money" class="p-2 text-black border-2 border-black block text-center w-full"
+    <input placeholder="Amount of Money" class="p-2 text-black border border-black block text-center w-full"
       type="number" v-model="money" />
     <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center">Months</label>
-    <input placeholder="Number of Months" class="p-2 text-black border-2 border-black w-full block text-center"
+    <input placeholder="Number of Months" class="p-2 text-black border border-black w-full block text-center"
       type="number" v-model="months" />
     <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center ">Monthly Budget</label>
 
@@ -174,7 +174,7 @@ export default {
       <div v-for="(category, index) in category_budg" :key="'history-' + index"
         class="w-full border border-black flex justify-between">
         <p v-if="rows[index].totalSpent > 0" class=" font-bold text-center w-full bg-indigo-100">{{ category.category
-        }}:
+          }}:
         </p>
         <p v-if="rows[index].totalSpent > 0" class=" text-center w-full bg-indigo-100">-${{ rows[index].totalSpent }}
         </p>
