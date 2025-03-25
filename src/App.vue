@@ -103,25 +103,27 @@ export default {
   <div class="flex flex-col items-center justify-center w-full">
     <h1 class="font-bold">Monthly Budget Calculator</h1>
     <label class="bg-green-600 text-black p-1 w-full block text-center font-bold">Money</label>
-    <input placeholder="Amount of Money" class="p-2 text-black border border-black block text-center w-full"
-      type="number" v-model="money" />
+    <input placeholder="Amount of Money"
+      class="p-2 text-black rounded-none border border-black block text-center w-full" type="number" v-model="money" />
     <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center">Months</label>
-    <input placeholder="Number of Months" class="p-2 text-black border border-black w-full block text-center"
-      type="number" v-model="months" />
+    <input placeholder="Number of Months"
+      class="p-2 text-black rounded-none  border border-black w-full block text-center" type="number"
+      v-model="months" />
     <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center ">Monthly Budget</label>
 
     <!-- show month budg, or say to enter money or months, or congratulate on savings -->
-    <div v-if="money && months > 0" class="bg-green-200 border-black border-2 w-full text-center p-4">
+    <div v-if="money && months > 0" class="bg-green-200 rounded-none border-black border-2 w-full text-center p-4">
       <h3>Total Money: {{ money }}</h3>
       <p class="font-bold text-2xl"> Monthly Budget:
         ${{ month_budg }}
       </p>
       <h3>Months Left: {{ months }}</h3>
     </div>
-    <div v-if="!money && !months" class="bg-green-200 border-black border-2 w-full text-center p-4">
+    <div v-if="!money && !months" class="bg-green-200 rounded-none border-black border-2 w-full text-center p-4">
       <h3>Enter Money and Months</h3>
     </div>
-    <div v-if="money > 0 && months == 0" class="bg-green-200 border-black border-2 w-full text-center p-4">
+    <div v-if="money > 0 && months == 0"
+      class="bg-green-200 rounded-none  border-black border-2 w-full text-center p-4">
       <h3>You saved ${{ money }}!</h3>
     </div>
 
@@ -133,23 +135,24 @@ export default {
     <div class="flex justify-between w-full">
 
       <!-- add, delete, reset buttons -->
-      <button @click="addrow" class="border-2 bg-green-400 border-black flex-1 p-2">
+      <button @click="addrow" class="rounded-none border-2 bg-green-400 border-black flex-1 p-2">
         Add Row
       </button>
-      <button @click="deleterow(index)" class="border-2 bg-red-400 border-black flex-1 p-2">
+      <button @click="deleterow(index)" class="rounded-none border-2 bg-red-400 border-black flex-1 p-2">
         Delete Row
       </button>
-      <button @click="resetrows" class="border-2 bg-yellow-400 border-black flex-1 p-2">
+      <button @click="resetrows" class="rounded-none border-2 bg-yellow-400 border-black flex-1 p-2">
         Reset
       </button>
-      <button @click="new_month" class="border-2 bg-purple-400 border-black flex-1 p-2">New Month</button>
+      <button @click="new_month" class="rounded-none border-2 bg-purple-400 border-black flex-1 p-2">New Month</button>
     </div>
 
     <!-- rows for each category and percentage -->
     <div v-for="(rows, index) in rows" :key="index" class="flex justify-between w-full">
-      <input v-model="rows.category" placeholder="Category" type="text" class="p-2 border-2 border-black w-full" />
+      <input v-model="rows.category" placeholder="Category" type="text"
+        class="p-2 rounded-none border-2 border-black w-full" />
       <input v-model.number="rows.percentage" placeholder="Percent" type="number"
-        class="p-2 border-2 border-black w-full" @input="limitpercentage(rows)" />
+        class="p-2 rounded-none border-2 border-black w-full" @input="limitpercentage(rows)" />
     </div>
 
     <!-- spendings  -->
@@ -159,8 +162,9 @@ export default {
         {{ budget.category }}: ${{ (budget.budg - rows[index].totalSpent).toFixed(2) }}
       </p>
       <input v-model.number="rows[index].amountspent" type="number" v-if="budget.category && budget.budg > 0"
-        class="p-2 w-full border-2 border-red-500" placeholder="Amount Spent" />
-      <button v-if="budget.category && budget.budg > 0" class="bg-red-500 border-2 border-red-500 text-lg font-bold p-2"
+        class="p-2 w-full rounded-none border-2 border-red-500" placeholder="Amount Spent" />
+      <button v-if="budget.category && budget.budg > 0"
+        class="bg-red-500 rounded-none border-2 border-red-500 text-lg font-bold p-2"
         @click="spendamount(rows[index])">✅</button>
     </div>
 
@@ -172,7 +176,7 @@ export default {
 
     <div v-show="showhistory" class="w-full">
       <div v-for="(category, index) in category_budg" :key="'history-' + index"
-        class="w-full border border-black flex justify-between">
+        class="w-full rounded-none border border-black flex justify-between">
         <p v-if="rows[index].totalSpent > 0" class=" font-bold text-center w-full bg-indigo-100">{{ category.category
         }}:
         </p>
