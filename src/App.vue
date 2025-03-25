@@ -161,7 +161,7 @@ export default {
       <input v-model.number="rows[index].amountspent" type="number" v-if="budget.category && budget.budg > 0"
         class="p-2 w-full border-2 border-red-500" placeholder="Amount Spent" />
       <button v-if="budget.category && budget.budg > 0" class="bg-red-500 border-2 border-red-500 text-lg font-bold p-2"
-        @click="spendamount(rows[index])">🗸</button>
+        @click="spendamount(rows[index])">✅</button>
     </div>
 
     <!-- history -->
@@ -174,7 +174,7 @@ export default {
       <div v-for="(category, index) in category_budg" :key="'history-' + index"
         class="w-full border border-black flex justify-between">
         <p v-if="rows[index].totalSpent > 0" class=" font-bold text-center w-full bg-indigo-100">{{ category.category
-          }}:
+        }}:
         </p>
         <p v-if="rows[index].totalSpent > 0" class=" text-center w-full bg-indigo-100">-${{ rows[index].totalSpent }}
         </p>
