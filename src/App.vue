@@ -12,7 +12,7 @@ export default {
   computed: {
     month_budg() {
       if (this.money > 0 && this.months > 0) {
-        return (Math.round((this.money / this.months)) * 100 / 100) - this.expenses;
+        return parseFloat(((this.money / this.months) - this.expenses).toFixed(2));
       } else {
         return 0;
       }
@@ -24,7 +24,7 @@ export default {
           const allocatedBudget = (percentage / 100) * this.month_budg;
           return {
             category: row.category,
-            budg: allocatedBudget,
+            budg: parseFloat(allocatedBudget.toFixed(2)),
           };
         } else {
           return {
@@ -35,7 +35,7 @@ export default {
       });
     },
     percent_pool() {
-      return this.rows.reduce((total, row) => total + (parseFloat(row.percentage) || 0), 0);
+      return parseFloat(this.rows.reduce((total, row) => total + (parseFloat(row.percentage) || 0), 0).toFixed(2));
     },
   },
   watch: {
@@ -61,7 +61,7 @@ export default {
     },
     deleterow(index) {
       if (this.rows.length > 1) {
-        this.rows.pop()
+        this.rows.pop();
       }
     },
     resetall() {
@@ -71,7 +71,6 @@ export default {
       localStorage.removeItem('expenses');
       console.log("LocalStorage cleared");
 
-      // Reset reactive state
       this.money = 0;
       this.months = 0;
       this.expenses = 0;
@@ -83,8 +82,6 @@ export default {
         console.log("expenses:", this.expenses);
         console.log("rows:", this.rows);
       });
-
-
     },
     limitpercentage(row) {
       if (this.percent_pool > 100) {
@@ -94,17 +91,15 @@ export default {
     },
     spendamount(row) {
       const amount = parseFloat(row.amountspent) || 0;
-      row.totalSpent += amount;
-      this.expenses += amount;
-      this.month_budg -= amount;
-      row.amountspent = ""; // Clear input after adding
+      row.totalSpent = parseFloat((row.totalSpent + amount).toFixed(2));
+      this.expenses = parseFloat((this.expenses + amount).toFixed(2));
+      row.amountspent = "";
     },
     new_month() {
       if (this.months <= 0) {
         alert("You have reached the end of your entered months. Enter more months");
-      }
-      else {
-        this.money -= this.expenses;
+      } else {
+        this.money = parseFloat((this.money - this.expenses).toFixed(2));
         this.months -= 1;
         this.expenses = 0;
         this.rows.forEach(row => {
@@ -117,56 +112,44 @@ export default {
 };
 </script>
 
+
 <template>
-  <!-- money and months input -->
-  <div class="flex flex-col items-center justify-center w-full">
+  <!-- title -->
+  <div class="flex flex-col items-center m-2">
     <h1 class="font-bold">Monthly Budget Calculator</h1>
+    <!-- enter money -->
     <label class="bg-green-600 text-black p-1 w-full block text-center font-bold">Money</label>
     <input placeholder="Amount of Money"
       class="p-2 text-black rounded-none border border-black block text-center w-full" type="number" v-model="money" />
     <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center">Months</label>
+    <!-- enter months -->
     <input placeholder="Number of Months"
       class="p-2 text-black rounded-none  border border-black w-full block text-center" type="number"
       v-model="months" />
+      <!-- show month budg -->
     <label class=" font-bold bg-green-600 text-black p-1 w-full block text-center ">Monthly Budget</label>
 
-    <!-- show month budg, or say to enter money or months, or congratulate on savings -->
     <div v-if="money && months > 0" class="bg-green-200 rounded-none border-black border-2 w-full text-center p-4">
-      <h3>Total Money: {{ money }}</h3>
-      <p class="font-bold text-2xl"> Monthly Budget:
-        ${{ month_budg }}
-      </p>
+      <h3>Total Money: ${{ parseFloat(money).toFixed(2) }}</h3>
+      <p class="font-bold text-2xl"> Monthly Budget: ${{ month_budg.toFixed(2) }}</p>
       <h3>Months Left: {{ months }}</h3>
     </div>
-    <div v-if="!money && !months" class="bg-green-200 rounded-none border-black border-2 w-full text-center p-4">
+    <div v-if="!money || !months" class="bg-green-200 rounded-none border-black border-2 w-full text-center p-4">
       <h3>Enter Money and Months</h3>
     </div>
-    <div v-if="money > 0 && months == 0"
-      class="bg-green-200 rounded-none  border-black border-2 w-full text-center p-4">
-      <h3>You saved ${{ money }}!</h3>
-    </div>
 
-    <!-- categories and percentages -->
+    <!-- categories bar -->
     <div class="flex justify-between w-full">
       <label class="block text-center bg-blue-400 w-full font-bold p-3 text-lg">Categories</label>
       <label class="block text-center bg-blue-400 w-full font-bold p-3 text-lg">%: {{ percent_pool }}</label>
     </div>
     <div class="flex justify-between w-full">
-
-      <!-- add, delete, resetall buttons -->
-      <button @click="addrow" class="rounded-none border-2 bg-green-400 border-black flex-1 p-2">
-        Add Row
-      </button>
-      <button @click="deleterow(index)" class="rounded-none border-2 bg-red-400 border-black flex-1 p-2">
-        Delete Row
-      </button>
-      <button @click="resetall" class="rounded-none border-2 bg-yellow-400 border-black flex-1 p-2">
-        Reset
-      </button>
+      <button @click="addrow" class="rounded-none border-2 bg-green-400 border-black flex-1 p-2">Add Row</button>
+      <button @click="deleterow(index)" class="rounded-none border-2 bg-red-400 border-black flex-1 p-2">Delete Row</button>
+      <button @click="resetall" class="rounded-none border-2 bg-yellow-400 border-black flex-1 p-2">Reset</button>
       <button @click="new_month" class="rounded-none border-2 bg-purple-400 border-black flex-1 p-2">New Month</button>
     </div>
 
-    <!-- rows for each category and percentage -->
     <div v-for="(rows, index) in rows" :key="index" class="flex justify-between w-full">
       <input v-model="rows.category" placeholder="Category" type="text"
         class="p-2 rounded-none border-2 border-black w-full" />
@@ -174,33 +157,33 @@ export default {
         class="p-2 rounded-none border-2 border-black w-full" @input="limitpercentage(rows)" />
     </div>
 
-    <!-- spendings  -->
+    <!-- spendings -->
     <label class="block text-center bg-orange-400 w-full font-bold">Spendings</label>
     <div v-for="(budget, index) in category_budg" :key="'budget-' + index" class="flex justify-between w-full">
       <p class="w-full bg-orange-100" v-if="budget.category && budget.budg > 0">
-        {{ budget.category }}: ${{ (budget.budg - rows[index].totalSpent) }}
+        {{ budget.category }}: ${{ (budget.budg - rows[index].totalSpent).toFixed(2) }}
       </p>
       <input v-model.number="rows[index].amountspent" type="number" v-if="budget.category && budget.budg > 0"
         class="p-2 w-full rounded-none border-2 border-red-500" placeholder="Amount Spent" />
       <button v-if="budget.category && budget.budg > 0"
         class="bg-red-500 rounded-none border-2 border-red-500 text-lg font-bold p-2"
-        @click="spendamount(rows[index])">✅</button>
-    </div>
+        @click="spendamount(rows[index])">
+        <i class="fas fa-check"></i>
 
-    <!-- history -->
-    <label @click="showhistory = !showhistory"
-      class="block text-center bg- w-full bg-indigo-400 font-bold cursor-pointer">History <span>{{ showhistory ?
-        '\u25BC'
-        : '\u25B6' }}</span></label>
+
+      </button>
+    </div>
+<!-- history -->
+<label @click="showhistory = !showhistory"
+  class="block text-center w-full bg-indigo-400 font-bold cursor-pointer">
+  History <i :class="showhistory ? 'fa-solid fa-caret-up' : 'fa-solid fa-caret-down'"></i>
+</label>
 
     <div v-show="showhistory" class="w-full">
       <div v-for="(category, index) in category_budg" :key="'history-' + index"
         class="w-full rounded-none border border-black flex justify-between">
-        <p v-if="rows[index].totalSpent > 0" class=" font-bold text-center w-full bg-indigo-100">{{ category.category
-        }}:
-        </p>
-        <p v-if="rows[index].totalSpent > 0" class=" text-center w-full bg-indigo-100">-${{ rows[index].totalSpent }}
-        </p>
+        <p v-if="rows[index].totalSpent > 0" class="font-bold text-center w-full bg-indigo-100">{{ category.category }}:</p>
+        <p v-if="rows[index].totalSpent > 0" class="text-center w-full bg-indigo-100">-${{ rows[index].totalSpent.toFixed(2) }}</p>
       </div>
     </div>
 
