@@ -24,7 +24,7 @@ export default {
           const allocatedBudget = (percentage / 100) * this.month_budg;
           return {
             category: row.category,
-            budg: allocatedBudget.toFixed(2),
+            budg: allocatedBudget,
           };
         } else {
           return {
@@ -64,8 +64,27 @@ export default {
         this.rows.pop()
       }
     },
-    resetrows() {
-      this.rows = [{ category: "", percentage: "", amountspent: "", totalSpent: 0 }];
+    resetall() {
+      localStorage.removeItem('money');
+      localStorage.removeItem('months');
+      localStorage.removeItem('rows');
+      localStorage.removeItem('expenses');
+      console.log("LocalStorage cleared");
+
+      // Reset reactive state
+      this.money = 0;
+      this.months = 0;
+      this.expenses = 0;
+      this.rows = [{ category: "", percentage: 0, amountspent: 0, totalSpent: 0 }];
+      this.$nextTick(() => {
+        console.log("After reset:");
+        console.log("money:", this.money);
+        console.log("months:", this.months);
+        console.log("expenses:", this.expenses);
+        console.log("rows:", this.rows);
+      });
+
+
     },
     limitpercentage(row) {
       if (this.percent_pool > 100) {
@@ -134,14 +153,14 @@ export default {
     </div>
     <div class="flex justify-between w-full">
 
-      <!-- add, delete, reset buttons -->
+      <!-- add, delete, resetall buttons -->
       <button @click="addrow" class="rounded-none border-2 bg-green-400 border-black flex-1 p-2">
         Add Row
       </button>
       <button @click="deleterow(index)" class="rounded-none border-2 bg-red-400 border-black flex-1 p-2">
         Delete Row
       </button>
-      <button @click="resetrows" class="rounded-none border-2 bg-yellow-400 border-black flex-1 p-2">
+      <button @click="resetall" class="rounded-none border-2 bg-yellow-400 border-black flex-1 p-2">
         Reset
       </button>
       <button @click="new_month" class="rounded-none border-2 bg-purple-400 border-black flex-1 p-2">New Month</button>
@@ -159,7 +178,7 @@ export default {
     <label class="block text-center bg-orange-400 w-full font-bold">Spendings</label>
     <div v-for="(budget, index) in category_budg" :key="'budget-' + index" class="flex justify-between w-full">
       <p class="w-full bg-orange-100" v-if="budget.category && budget.budg > 0">
-        {{ budget.category }}: ${{ (budget.budg - rows[index].totalSpent).toFixed(2) }}
+        {{ budget.category }}: ${{ (budget.budg - rows[index].totalSpent) }}
       </p>
       <input v-model.number="rows[index].amountspent" type="number" v-if="budget.category && budget.budg > 0"
         class="p-2 w-full rounded-none border-2 border-red-500" placeholder="Amount Spent" />
