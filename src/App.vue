@@ -2,14 +2,18 @@
 export default {
   data() {
     return {
+      // Get localStorage data or initialize default values
       money: localStorage.getItem('money') ? JSON.parse(localStorage.getItem('money')) : null,
       months: localStorage.getItem('months') ? JSON.parse(localStorage.getItem('months')) : null,
-      rows: localStorage.getItem('rows') ? JSON.parse(localStorage.getItem('rows')) : [{ category: "", percentage: "", amountspent: "", totalSpent: 0 }],
+      rows: localStorage.getItem('rows') ? JSON.parse(localStorage.getItem('rows')) : [
+        { category: "", percentage: "", amountspent: "", totalSpent: 0, spendHistory: [] }
+      ],
       showhistory: false,
       expenses: localStorage.getItem('expenses') ? JSON.parse(localStorage.getItem('expenses')) : 0,
     };
   },
   computed: {
+    // Monthly budget = total money / months - current expenses
     month_budg() {
       if (this.money > 0 && this.months > 0) {
         return parseFloat(((this.money / this.months) - this.expenses).toFixed(2));
@@ -17,6 +21,7 @@ export default {
         return 0;
       }
     },
+    // Calculate each category's budget based on percentage
     category_budg() {
       return this.rows.map((row) => {
         if (row.category && row.percentage) {
@@ -34,11 +39,13 @@ export default {
         }
       });
     },
+    // Total percentage from all rows
     percent_pool() {
       return parseFloat(this.rows.reduce((total, row) => total + (parseFloat(row.percentage) || 0), 0).toFixed(2));
     },
   },
   watch: {
+    // Sync changes to localStorage
     money(newValue) {
       localStorage.setItem('money', JSON.stringify(newValue));
     },
@@ -56,15 +63,20 @@ export default {
     }
   },
   methods: {
+    // Add new category row
     addrow() {
-      this.rows.push({ category: "", percentage: "", amountspent: "", totalSpent: 0 });
+      this.rows.push({ category: "", percentage: "", amountspent: "", totalSpent: 0, spendHistory: [] });
     },
+    // Delete last row (if more than one)
     deleterow(index) {
       if (this.rows.length > 1) {
         this.rows.pop();
       }
     },
+    // Reset all values and clear localStorage
     resetall() {
+      const confirmReset = confirm("Are you sure you want to reset? Everything will be set to 0.");
+      if(!confirmReset) return;
       localStorage.removeItem('money');
       localStorage.removeItem('months');
       localStorage.removeItem('rows');
@@ -74,7 +86,7 @@ export default {
       this.money = 0;
       this.months = 0;
       this.expenses = 0;
-      this.rows = [{ category: "", percentage: 0, amountspent: 0, totalSpent: 0 }];
+      this.rows = [{ category: "", percentage: 0, amountspent: 0, totalSpent: 0, spendHistory: [] }];
       this.$nextTick(() => {
         console.log("After reset:");
         console.log("money:", this.money);
@@ -83,18 +95,28 @@ export default {
         console.log("rows:", this.rows);
       });
     },
+    // Limit total percentage to 100%
     limitpercentage(row) {
       if (this.percent_pool > 100) {
         alert("Exceeded 100% of budget");
         row.percentage = "";
       }
     },
+    // Spend amount in category and log history
     spendamount(row) {
       const amount = parseFloat(row.amountspent) || 0;
-      row.totalSpent = parseFloat((row.totalSpent + amount).toFixed(2));
-      this.expenses = parseFloat((this.expenses + amount).toFixed(2));
+      if (amount <= 0) return;
+
+      if (!row.spendHistory) row.spendHistory = [];
+      row.spendHistory.push(amount);
+      row.totalSpent = parseFloat(row.spendHistory.reduce((a, b) => a + b, 0).toFixed(2));
+
+      this.expenses = parseFloat(this.rows.reduce((sum, r) =>
+        sum + (r.spendHistory?.reduce((a, b) => a + b, 0) || 0), 0).toFixed(2));
+
       row.amountspent = "";
     },
+    // Start new month
     new_month() {
       if (this.months <= 0) {
         alert("You have reached the end of your entered months. Enter more months");
@@ -105,6 +127,7 @@ export default {
         this.rows.forEach(row => {
           row.amountspent = "";
           row.totalSpent = 0;
+          row.spendHistory = [];
         });
       }
     }
@@ -175,17 +198,18 @@ export default {
     </div>
 <!-- history -->
 <label @click="showhistory = !showhistory"
-  class="block text-center w-full bg-indigo-400 font-bold cursor-pointer">
-  History <i :class="showhistory ? 'fa-solid fa-caret-up' : 'fa-solid fa-caret-down'"></i>
-</label>
+    class="block text-center w-full bg-indigo-400 font-bold cursor-pointer">
+    History <i :class="showhistory ? 'fa-solid fa-caret-up' : 'fa-solid fa-caret-down'"></i>
+  </label>
 
-    <div v-show="showhistory" class="w-full">
-      <div v-for="(category, index) in category_budg" :key="'history-' + index"
-        class="w-full rounded-none border border-black flex justify-between">
-        <p v-if="rows[index].totalSpent > 0" class="font-bold text-center w-full bg-indigo-100">{{ category.category }}:</p>
-        <p v-if="rows[index].totalSpent > 0" class="text-center w-full bg-indigo-100">-${{ rows[index].totalSpent.toFixed(2) }}</p>
+  <div v-show="showhistory" class="w-full">
+    <div v-for="(row, rowIndex) in rows" :key="'row-history-' + rowIndex" class="w-full">
+      <div v-if="row.spendHistory?.length > 0" class="font-bold text-center bg-indigo-200">{{ row.category }}</div>
+      <div v-for="(amount, i) in row.spendHistory" :key="'spend-' + i"
+        class="w-full rounded-none border-b border-black text-center bg-indigo-100">
+        - ${{ amount.toFixed(2) }}
       </div>
     </div>
-
+  </div>
   </div>
 </template>
