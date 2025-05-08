@@ -2,19 +2,27 @@
 export default {
   data() {
     return {
-      // Get localStorage data or initialize default values
       money: localStorage.getItem("money")
         ? JSON.parse(localStorage.getItem("money"))
-        : null,
+        : 0,
       months: localStorage.getItem("months")
         ? JSON.parse(localStorage.getItem("months"))
-        : null,
+        : 0,
       rows: localStorage.getItem("rows")
-        ? JSON.parse(localStorage.getItem("rows"))
+        ? JSON.parse(localStorage.getItem("rows")).map((row) => ({
+            ...row,
+            itemname: row.itemname || "",
+            amountspent: row.amountspent || "",
+            spendHistory: Array.isArray(row.spendHistory)
+              ? row.spendHistory
+              : [],
+            totalSpent: parseFloat(row.totalSpent) || 0,
+          }))
         : [
             {
               category: "",
               percentage: "",
+              itemname: "",
               amountspent: "",
               totalSpent: 0,
               spendHistory: [],
@@ -22,12 +30,11 @@ export default {
           ],
       showhistory: false,
       expenses: localStorage.getItem("expenses")
-        ? JSON.parse(localStorage.getItem("expenses"))
+        ? parseFloat(JSON.parse(localStorage.getItem("expenses")))
         : 0,
     };
   },
   computed: {
-    // Monthly budget = total money / months - current expenses
     month_budg() {
       if (this.money > 0 && this.months > 0) {
         return parseFloat(
@@ -37,14 +44,13 @@ export default {
         return 0;
       }
     },
-    // Calculate each category's budget based on percentage
     category_budg() {
       return this.rows.map((row) => {
         if (row.category && row.percentage) {
           const percentage = parseFloat(row.percentage) || 0;
           const allocatedBudget =
-            (percentage / 100) * (this.money / this.months); // base it on raw monthly split
-          const remainingBudget = allocatedBudget - row.totalSpent; // subtract only this category's spending
+            (percentage / 100) * (this.money / this.months);
+          const remainingBudget = allocatedBudget - row.totalSpent;
           return {
             category: row.category,
             budg: parseFloat(remainingBudget.toFixed(2)),
@@ -57,8 +63,6 @@ export default {
         }
       });
     },
-
-    // Total percentage from all rows
     percent_pool() {
       return parseFloat(
         this.rows
@@ -67,52 +71,32 @@ export default {
       );
     },
   },
-  watch: {
-    // Sync changes to localStorage
-    money(newValue) {
-      localStorage.setItem("money", JSON.stringify(newValue));
-    },
-    months(newValue) {
-      localStorage.setItem("months", JSON.stringify(newValue));
-    },
-    rows: {
-      handler(newValue) {
-        localStorage.setItem("rows", JSON.stringify(newValue));
-      },
-      deep: true,
-    },
-    expenses(newValue) {
-      localStorage.setItem("expenses", JSON.stringify(newValue));
-    },
-  },
   methods: {
-    // Add new category row
     addrow() {
       this.rows.push({
         category: "",
         percentage: "",
+        itemname: "",
         amountspent: "",
         totalSpent: 0,
         spendHistory: [],
       });
     },
-    // Delete last row (if more than one)
     deleterow(index) {
       if (this.rows.length > 1) {
-        this.rows.pop();
+        this.rows.splice(index, 1);
       }
     },
-    // Reset all values and clear localStorage
     resetall() {
       const confirmReset = confirm(
         "Are you sure you want to reset? Everything will be set to 0."
       );
       if (!confirmReset) return;
+
       localStorage.removeItem("money");
       localStorage.removeItem("months");
       localStorage.removeItem("rows");
       localStorage.removeItem("expenses");
-      console.log("LocalStorage cleared");
 
       this.money = 0;
       this.months = 0;
@@ -120,47 +104,53 @@ export default {
       this.rows = [
         {
           category: "",
-          percentage: 0,
-          amountspent: 0,
+          percentage: "",
+          itemname: "",
+          amountspent: "",
           totalSpent: 0,
           spendHistory: [],
         },
       ];
-      this.$nextTick(() => {
-        console.log("After reset:");
-        console.log("money:", this.money);
-        console.log("months:", this.months);
-        console.log("expenses:", this.expenses);
-        console.log("rows:", this.rows);
-      });
     },
-    // Limit total percentage to 100%
     limitpercentage(row) {
       if (this.percent_pool > 100) {
         alert("Exceeded 100% of budget");
         row.percentage = "";
       }
     },
-    // Spend amount in category and log history
+
     spendamount(row) {
-      const amount = parseFloat(row.amountspent) || 0;
-      if (amount <= 0) return;
+      const amount = parseFloat(row.amountspent);
+      const item = row.itemname;
+
+      if (isNaN(amount) || amount <= 0) {
+        row.amountspent = "";
+        return;
+      }
+
+      // ✅ Allow empty item names, if empty just use an empty string
+      if (!item || item.trim() === "") {
+        row.itemname = "";
+      }
 
       if (!row.spendHistory) row.spendHistory = [];
-      row.spendHistory.push(amount);
 
-      // ✅ Update only this row's total spent
-      row.totalSpent = parseFloat(
-        row.spendHistory.reduce((a, b) => a + b, 0).toFixed(2)
-      );
+      // Add the new spending item
+      row.spendHistory.push({
+        item: item.trim(),
+        amount: parseFloat(amount.toFixed(2)),
+      });
 
-      // ✅ Update the global expense by recalculating just for this row
-      this.expenses = parseFloat((this.expenses + amount).toFixed(2));
+      // ✅ Calculate the total for just this row
+      row.totalSpent = row.spendHistory.reduce((a, b) => a + b.amount, 0);
 
+      // ✅ Instead of adding it again, just sum up all rows
+      this.expenses = this.rows.reduce((total, r) => total + r.totalSpent, 0);
+
+      // Clear the inputs
       row.amountspent = "";
+      row.itemname = "";
     },
-
-    // Start new month
     new_month() {
       if (this.months <= 0) {
         alert(
@@ -173,9 +163,17 @@ export default {
         this.rows.forEach((row) => {
           row.amountspent = "";
           row.totalSpent = 0;
-          row.spendHistory = [];
         });
       }
+    },
+
+    deleteHistoryEntry(row, index) {
+      const entry = row.spendHistory[index];
+      row.spendHistory.splice(index, 1);
+      row.totalSpent = parseFloat(
+        row.spendHistory.reduce((a, b) => a + b.amount, 0).toFixed(2)
+      );
+      this.expenses = parseFloat((this.expenses - entry.amount).toFixed(2));
     },
   },
 };
@@ -267,6 +265,7 @@ export default {
     </div>
 
     <div
+      v-if="money && months > 0"
       v-for="(rows, index) in rows"
       :key="index"
       class="flex justify-between w-full"
@@ -296,16 +295,21 @@ export default {
       class="flex justify-between w-full"
     >
       <p class="w-full bg-orange-100" v-if="budget.category && budget.budg > 0">
-        {{ budget.category }}: ${{
-          (budget.budg - rows[index].totalSpent).toFixed(2)
-        }}
+        {{ budget.category }}: ${{ budget.budg.toFixed(2) }}
       </p>
+
       <input
-        v-model.number="rows[index].amountspent"
-        type="number"
         v-if="budget.category && budget.budg > 0"
+        v-model="rows[index].itemname"
+        class="p-2 w-full rounded-none border-2 border-blue-500"
+        placeholder="Item"
+      />
+      <input
+        v-if="budget.category && budget.budg > 0"
+        v-model="rows[index].amountspent"
         class="p-2 w-full rounded-none border-2 border-red-500"
         placeholder="Amount Spent"
+        type="number"
       />
       <button
         v-if="budget.category && budget.budg > 0"
@@ -339,11 +343,19 @@ export default {
           {{ row.category }}
         </div>
         <div
-          v-for="(amount, i) in row.spendHistory"
+          v-for="(entry, i) in row.spendHistory"
           :key="'spend-' + i"
-          class="w-full rounded-none border-b border-black text-center bg-indigo-100"
+          class="w-full flex flex-row items-center justify-between border-b border-black bg-indigo-100 p-2"
         >
-          - ${{ amount.toFixed(2) }}
+          <span class="ml-auto">{{ entry.item }} </span>
+          <span v-if="entry.item">:</span>
+          <span>${{ entry.amount }}</span>
+          <button
+            class="bg-red-500 px-2 py-1 ml-auto rounded"
+            @click="deleteHistoryEntry(row, i)"
+          >
+            <i class="text-black fa-solid fa-trash"></i>
+          </button>
         </div>
       </div>
     </div>
