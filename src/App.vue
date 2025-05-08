@@ -181,8 +181,10 @@ export default {
 
 <template>
   <!-- title -->
-  <div class="flex flex-col items-center m-2">
-    <h1 class="font-bold">Monthly Budget Calculator</h1>
+  <h1 class="font-bold flex flex-col items-center">
+    Monthly Budget Calculator
+  </h1>
+  <div class="flex flex-col items-center w-[90%] mx-auto border-2 border-black">
     <!-- enter money -->
     <label
       class="bg-green-600 text-black p-1 w-full block text-center font-bold"
