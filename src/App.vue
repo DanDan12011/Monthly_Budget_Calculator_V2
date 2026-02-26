@@ -271,8 +271,7 @@ export default {
             this.authSuccessMessage = "Account created! You're signed in.";
             setTimeout(() => (this.authSuccessMessage = ""), 4000);
           } else {
-            this.authMessage =
-              "Check your email to verify your account, then sign in below.";
+            this.authMessage = "verification_sent";
             this.authMode = "signin";
           }
         } else {
@@ -567,80 +566,118 @@ export default {
       @click.self="closeAuth"
     >
       <div
-        class="rounded-lg border border-black shadow-xl max-w-sm w-full p-6 bg-white text-gray-900"
+        class="rounded-xl border border-gray-200 shadow-2xl max-w-sm w-full overflow-hidden bg-white text-gray-900"
         @click.stop
       >
-        <h2 class="text-xl font-bold mb-2">
-          {{ authMode === "signup" ? "Create account" : "Sign in" }}
-        </h2>
-        <p class="text-sm text-gray-600 mb-4">Sync your data across devices</p>
-        <div v-if="authLoading" class="py-8 text-center text-gray-600">
-          <div class="inline-block w-8 h-8 border-2 border-gray-400 border-t-blue-500 rounded-full animate-spin mb-3"></div>
-          <p class="font-medium">Signing in...</p>
-        </div>
-        <div v-else class="space-y-4">
-          <div>
-            <label for="auth-email" class="block text-sm font-medium mb-1"
-              >Email</label
-            >
-            <input
-              id="auth-email"
-              v-model="authEmail"
-              type="email"
-              placeholder="you@example.com"
-              class="w-full p-2 border border-black rounded"
-              :disabled="authLoading"
-            />
-          </div>
-          <div>
-            <label for="auth-password" class="block text-sm font-medium mb-1"
-              >Password</label
-            >
-            <input
-              id="auth-password"
-              v-model="authPassword"
-              type="password"
-              placeholder="••••••••"
-              class="w-full p-2 border border-black rounded"
-              :disabled="authLoading"
-              @keyup.enter="submitAuth"
-            />
-          </div>
-          <button
-            @click="submitAuth"
-            class="w-full py-2 bg-blue-500 text-white font-medium rounded border border-black hover:bg-blue-600 disabled:opacity-50"
-            :disabled="authLoading"
-          >
+        <div class="flex items-center justify-between px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold">
             {{ authMode === "signup" ? "Create account" : "Sign in" }}
-          </button>
-          <button
-            @click="authMode = authMode === 'signup' ? 'signin' : 'signup'"
-            class="w-full py-2 text-gray-600 hover:text-black text-sm"
-          >
-            {{
-              authMode === "signup"
-                ? "Already have an account? Sign in"
-                : "Create an account"
-            }}
-          </button>
+          </h2>
           <button
             @click="closeAuth"
-            class="w-full py-2 text-gray-600 hover:text-black text-sm"
+            type="button"
+            class="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            aria-label="Close"
           >
-            Continue as guest
+            <i class="fa-solid fa-times text-lg"></i>
           </button>
         </div>
-        <p
-          v-if="authMessage && !authLoading"
-          class="mt-4 text-sm"
-          :class="
-            authMessage.includes('verify') || authMessage.includes('created')
-              ? 'text-green-600'
-              : 'text-red-600'
-          "
-        >
-          {{ authMessage }}
+        <p class="text-sm text-gray-500 px-6 pb-4">
+          {{
+            authMode === "signup"
+              ? "Sign up to sync your data across devices."
+              : "Sync your data across devices."
+          }}
         </p>
+        <div class="px-6 pb-6">
+          <div v-if="authLoading" class="py-8 text-center text-gray-600">
+            <div
+              class="inline-block w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mb-3"
+            ></div>
+            <p class="font-medium">Signing in...</p>
+          </div>
+          <template v-else>
+            <div
+              v-if="authMessage === 'verification_sent'"
+              class="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-100"
+            >
+              <div class="flex gap-3">
+                <div
+                  class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center"
+                >
+                  <i
+                    class="fa-solid fa-envelope-circle-check text-blue-600"
+                  ></i>
+                </div>
+                <div>
+                  <p class="font-semibold text-gray-900">Check your email</p>
+                  <p class="text-sm text-gray-600 mt-1">
+                    We've sent a verification link to
+                    <strong>{{ authEmail }}</strong
+                    >. Click the link in that email to verify your account, then
+                    sign in below.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label
+                  for="auth-email"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                  >Email</label
+                >
+                <input
+                  id="auth-email"
+                  v-model="authEmail"
+                  type="email"
+                  placeholder="you@example.com"
+                  class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  :disabled="authLoading"
+                />
+              </div>
+              <div>
+                <label
+                  for="auth-password"
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                  >Password</label
+                >
+                <input
+                  id="auth-password"
+                  v-model="authPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  :disabled="authLoading"
+                  @keyup.enter="submitAuth"
+                />
+              </div>
+              <button
+                @click="submitAuth"
+                class="w-full py-2.5 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="authLoading"
+              >
+                {{ authMode === "signup" ? "Create account" : "Sign in" }}
+              </button>
+              <button
+                @click="authMode = authMode === 'signup' ? 'signin' : 'signup'"
+                class="w-full py-2 text-gray-500 hover:text-gray-800 text-sm transition-colors"
+              >
+                {{
+                  authMode === "signup"
+                    ? "Already have an account? Sign in"
+                    : "Create an account"
+                }}
+              </button>
+            </div>
+            <p
+              v-if="authMessage && authMessage !== 'verification_sent'"
+              class="mt-4 text-sm text-red-600"
+            >
+              {{ authMessage }}
+            </p>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -650,7 +687,9 @@ export default {
       class="fixed inset-0 z-40 flex items-center justify-center bg-white/90"
     >
       <div class="text-center">
-        <div class="inline-block w-10 h-10 border-2 border-gray-300 border-t-green-600 rounded-full animate-spin mb-4"></div>
+        <div
+          class="inline-block w-10 h-10 border-2 border-gray-300 border-t-green-600 rounded-full animate-spin mb-4"
+        ></div>
         <p class="text-lg font-medium text-gray-800">Loading your data...</p>
       </div>
     </div>
@@ -666,7 +705,11 @@ export default {
       <span>{{ authSuccessMessage }}</span>
       <button
         @click="authSuccessMessage = ''"
-        :class="authSuccessMessage === 'Signed out.' ? 'bg-red-800 px-2 py-1 rounded hover:bg-red-700' : 'bg-green-800 px-2 py-1 rounded hover:bg-green-700'"
+        :class="
+          authSuccessMessage === 'Signed out.'
+            ? 'bg-red-800 px-2 py-1 rounded hover:bg-red-700'
+            : 'bg-green-800 px-2 py-1 rounded hover:bg-green-700'
+        "
       >
         ×
       </button>
@@ -754,7 +797,9 @@ export default {
             Add
           </button>
         </div>
-        <ul class="border border-black rounded divide-y divide-black overflow-hidden">
+        <ul
+          class="border border-black rounded divide-y divide-black overflow-hidden"
+        >
           <li
             v-for="cat in categories"
             :key="cat"
@@ -796,9 +841,15 @@ export default {
               @click="timeFilter = opt.value"
               :class="[
                 'px-3 py-1 rounded border border-black text-sm font-medium',
-                timeFilter === opt.value ? 'bg-black text-white' : 'hover:opacity-90',
+                timeFilter === opt.value
+                  ? 'bg-black text-white'
+                  : 'hover:opacity-90',
               ]"
-              :style="timeFilter !== opt.value ? { backgroundColor: themeSurface, color: themeText } : {}"
+              :style="
+                timeFilter !== opt.value
+                  ? { backgroundColor: themeSurface, color: themeText }
+                  : {}
+              "
             >
               {{ opt.label }}
             </button>
@@ -811,9 +862,15 @@ export default {
               @click="historyFilter = 'all'"
               :class="[
                 'px-3 py-1 rounded border border-black text-sm font-medium',
-                historyFilter === 'all' ? 'bg-black text-white' : 'hover:opacity-90',
+                historyFilter === 'all'
+                  ? 'bg-black text-white'
+                  : 'hover:opacity-90',
               ]"
-              :style="historyFilter !== 'all' ? { backgroundColor: themeSurface, color: themeText } : {}"
+              :style="
+                historyFilter !== 'all'
+                  ? { backgroundColor: themeSurface, color: themeText }
+                  : {}
+              "
             >
               All
             </button>
@@ -823,9 +880,15 @@ export default {
               @click="historyFilter = cat"
               :class="[
                 'px-3 py-1 rounded border border-black text-sm font-medium',
-                historyFilter === cat ? 'bg-black text-white' : 'hover:opacity-90',
+                historyFilter === cat
+                  ? 'bg-black text-white'
+                  : 'hover:opacity-90',
               ]"
-              :style="historyFilter !== cat ? { backgroundColor: themeSurface, color: themeText } : {}"
+              :style="
+                historyFilter !== cat
+                  ? { backgroundColor: themeSurface, color: themeText }
+                  : {}
+              "
             >
               {{ cat }}
             </button>
@@ -883,7 +946,10 @@ export default {
           </div>
         </div>
         <p class="text-sm opacity-80">
-          {{ themeSaveMessage || "Changes save automatically when you're signed in." }}
+          {{
+            themeSaveMessage ||
+            "Changes save automatically when you're signed in."
+          }}
         </p>
         <div
           class="space-y-4 border border-black rounded p-4"
