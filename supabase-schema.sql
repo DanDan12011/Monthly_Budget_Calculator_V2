@@ -23,13 +23,32 @@ create table if not exists public.expenses (
 alter table public.categories enable row level security;
 alter table public.expenses enable row level security;
 
+drop policy if exists "Users can manage own categories" on public.categories;
 create policy "Users can manage own categories"
   on public.categories for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users can manage own expenses" on public.expenses;
 create policy "Users can manage own expenses"
   on public.expenses for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- User preferences (e.g. theme) per user
+create table if not exists public.user_preferences (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  theme_bg text default '#f3f4f6',
+  theme_text text default '#111827',
+  theme_surface text default '#ffffff',
+  updated_at timestamptz default now()
+);
+
+alter table public.user_preferences enable row level security;
+
+drop policy if exists "Users can manage own preferences" on public.user_preferences;
+create policy "Users can manage own preferences"
+  on public.user_preferences for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 

@@ -1,7 +1,9 @@
 <script>
 import { supabase } from "./supabase.js";
+import ExpensePieChart from "./ExpensePieChart.vue";
 
 export default {
+  components: { ExpensePieChart },
   data() {
     return {
       menuOpen: false,
@@ -30,6 +32,14 @@ export default {
       authMessage: "",
       authLoading: false,
       userIsAnonymous: true,
+      themeBg: localStorage.getItem("themeBg") ?? "#f3f4f6",
+      themeText: localStorage.getItem("themeText") ?? "#111827",
+      themeSurface: localStorage.getItem("themeSurface") ?? "#ffffff",
+      loadingThemeFromSupabase: false,
+      themeSaveMessage: "",
+      authSuccessMessage: "",
+      postAuthLoading: false,
+      themeSaveTimeout: null,
     };
   },
   async mounted() {
@@ -117,6 +127,21 @@ export default {
     nextId(val) {
       localStorage.setItem("expenseNextId", String(val));
     },
+    themeBg(val) {
+      localStorage.setItem("themeBg", val);
+      if (this.syncEnabled && !this.loadingThemeFromSupabase)
+        this.debouncedSaveTheme();
+    },
+    themeText(val) {
+      localStorage.setItem("themeText", val);
+      if (this.syncEnabled && !this.loadingThemeFromSupabase)
+        this.debouncedSaveTheme();
+    },
+    themeSurface(val) {
+      localStorage.setItem("themeSurface", val);
+      if (this.syncEnabled && !this.loadingThemeFromSupabase)
+        this.debouncedSaveTheme();
+    },
   },
   methods: {
     isSupabaseConfigured() {
@@ -155,7 +180,8 @@ export default {
       if (this.syncEnabled) {
         const { id: dbId, error } = await this.addExpenseToSupabase(expense);
         if (error) {
-          this.errorMessage = "Failed to save. " + (error.message || "Try again.");
+          this.errorMessage =
+            "Failed to save. " + (error.message || "Try again.");
           setTimeout(() => (this.errorMessage = ""), 5000);
           return;
         }
@@ -181,7 +207,8 @@ export default {
       if (this.syncEnabled) {
         const err = await this.addCategoryToSupabase(name);
         if (err) {
-          this.errorMessage = "Failed to save category. " + (err.message || "Try again.");
+          this.errorMessage =
+            "Failed to save category. " + (err.message || "Try again.");
           setTimeout(() => (this.errorMessage = ""), 5000);
           return;
         }
@@ -236,8 +263,13 @@ export default {
           if (error) throw error;
           if (data.session) {
             this.userIsAnonymous = false;
-            await this.loadFromSupabase();
             this.showAuthScreen = false;
+            this.authLoading = false;
+            this.postAuthLoading = true;
+            await this.loadFromSupabase();
+            this.postAuthLoading = false;
+            this.authSuccessMessage = "Account created! You're signed in.";
+            setTimeout(() => (this.authSuccessMessage = ""), 4000);
           } else {
             this.authMessage =
               "Check your email to verify your account, then sign in below.";
@@ -250,8 +282,13 @@ export default {
           });
           if (error) throw error;
           this.userIsAnonymous = false;
-          await this.loadFromSupabase();
           this.showAuthScreen = false;
+          this.authLoading = false;
+          this.postAuthLoading = true;
+          await this.loadFromSupabase();
+          this.postAuthLoading = false;
+          this.authSuccessMessage = "Signed in successfully!";
+          setTimeout(() => (this.authSuccessMessage = ""), 4000);
         }
       } catch (e) {
         this.authMessage =
@@ -278,6 +315,8 @@ export default {
       } catch (e) {
         console.warn("Sign out / anonymous sign-in:", e);
       }
+      this.authSuccessMessage = "Signed out.";
+      setTimeout(() => (this.authSuccessMessage = ""), 4000);
     },
     async loadFromSupabase() {
       if (!supabase || !this.syncEnabled) return;
@@ -306,15 +345,11 @@ export default {
       this.expenseHistory = expenses;
       if (this.categories.length === 0 && expenses.length > 0) {
         const fromExpenses = [
-          ...new Set(
-            expenses.map((e) => e.category).filter(Boolean),
-          ),
+          ...new Set(expenses.map((e) => e.category).filter(Boolean)),
         ];
         this.categories = fromExpenses;
         for (const name of fromExpenses) {
-          await supabase
-            .from("categories")
-            .insert({ user_id: uid, name });
+          await supabase.from("categories").insert({ user_id: uid, name });
         }
       }
       const maxId = expenses.reduce(
@@ -322,9 +357,42 @@ export default {
         0,
       );
       if (maxId > 0) this.nextId = maxId + 1;
+      const prefsRes = await supabase
+        .from("user_preferences")
+        .select("theme_bg, theme_text, theme_surface")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (prefsRes.data) {
+        this.loadingThemeFromSupabase = true;
+        if (prefsRes.data.theme_bg != null)
+          this.themeBg = prefsRes.data.theme_bg;
+        if (prefsRes.data.theme_text != null)
+          this.themeText = prefsRes.data.theme_text;
+        if (prefsRes.data.theme_surface != null)
+          this.themeSurface = prefsRes.data.theme_surface;
+        this.$nextTick(() => {
+          this.loadingThemeFromSupabase = false;
+        });
+      }
+    },
+    async saveThemeToSupabase() {
+      if (!supabase || !this.syncEnabled) return;
+      const uid = (await supabase.auth.getUser()).data?.user?.id;
+      if (!uid) return;
+      await supabase.from("user_preferences").upsert(
+        {
+          user_id: uid,
+          theme_bg: this.themeBg,
+          theme_text: this.themeText,
+          theme_surface: this.themeSurface,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
     },
     async addExpenseToSupabase(expense) {
-      if (!supabase || !this.syncEnabled) return { id: expense.id, error: null };
+      if (!supabase || !this.syncEnabled)
+        return { id: expense.id, error: null };
       const uid = (await supabase.auth.getUser()).data?.user?.id;
       if (!uid) return { id: expense.id, error: new Error("Not signed in") };
       const { data, error } = await supabase
@@ -345,7 +413,9 @@ export default {
       if (!supabase || !this.syncEnabled) return null;
       const uid = (await supabase.auth.getUser()).data?.user?.id;
       if (!uid) return new Error("Not signed in");
-      const { error } = await supabase.from("categories").insert({ user_id: uid, name });
+      const { error } = await supabase
+        .from("categories")
+        .insert({ user_id: uid, name });
       return error || null;
     },
     async deleteCategoryFromSupabase(name) {
@@ -363,34 +433,85 @@ export default {
       if (typeof id !== "string") return;
       await supabase.from("expenses").delete().eq("id", id);
     },
+    resetTheme() {
+      this.themeBg = "#f3f4f6";
+      this.themeText = "#111827";
+      this.themeSurface = "#ffffff";
+    },
+    debouncedSaveTheme() {
+      if (this.themeSaveTimeout) clearTimeout(this.themeSaveTimeout);
+      this.themeSaveTimeout = setTimeout(() => {
+        this.themeSaveTimeout = null;
+        this.saveThemeToSupabase();
+        this.themeSaveMessage = "Saved";
+        setTimeout(() => (this.themeSaveMessage = ""), 2000);
+      }, 1000);
+    },
   },
 };
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-100">
+  <div
+    class="min-h-screen transition-colors"
+    :style="{
+      backgroundColor: themeBg,
+      color: themeText,
+      '--theme-surface': themeSurface,
+      '--theme-text': themeText,
+    }"
+  >
     <!-- Header with hamburger -->
     <header
-      class="bg-white border-b border-black sticky top-0 z-20 flex items-center justify-between px-4 py-3"
+      class="border-b border-black sticky top-0 z-20 flex items-center justify-between px-4 py-3"
+      :style="{ backgroundColor: themeSurface }"
     >
       <button
         @click="toggleMenu"
-        class="p-2 border border-black rounded hover:bg-gray-100"
+        class="p-2 border border-black rounded hover:opacity-80"
         aria-label="Toggle menu"
+        :style="{ backgroundColor: themeSurface, color: themeText }"
       >
-        <span class="block w-6 h-0.5 bg-black mb-1"></span>
-        <span class="block w-6 h-0.5 bg-black mb-1"></span>
-        <span class="block w-6 h-0.5 bg-black"></span>
+        <span
+          class="block w-6 h-0.5 mb-1"
+          :style="{ backgroundColor: themeText }"
+        ></span>
+        <span
+          class="block w-6 h-0.5 mb-1"
+          :style="{ backgroundColor: themeText }"
+        ></span>
+        <span
+          class="block w-6 h-0.5"
+          :style="{ backgroundColor: themeText }"
+        ></span>
       </button>
       <h1 class="text-lg font-bold">Expense Tracker</h1>
       <div class="flex items-center gap-2">
-        <span v-if="syncLoading" class="text-xs text-gray-500">...</span>
+        <span v-if="syncLoading" class="text-xs opacity-70">...</span>
         <span
           v-else-if="syncEnabled"
-          class="text-xs text-green-600 font-medium"
+          class="text-xs font-medium text-green-600"
           title="Synced to cloud"
           >Synced</span
         >
+        <template v-if="isSupabaseConfigured()">
+          <button
+            v-if="userIsAnonymous"
+            @click="openAuth"
+            class="text-sm font-medium px-3 py-1.5 rounded border border-black hover:opacity-80"
+            :style="{ backgroundColor: themeSurface, color: themeText }"
+          >
+            Sign in
+          </button>
+          <button
+            v-else
+            @click="signOut"
+            class="text-sm font-medium text-red-600 px-3 py-1.5 rounded border border-red-500 hover:opacity-80"
+            :style="{ backgroundColor: themeSurface }"
+          >
+            Sign out
+          </button>
+        </template>
         <span v-else class="w-10"></span>
       </div>
     </header>
@@ -403,62 +524,61 @@ export default {
     ></div>
     <nav
       :class="[
-        'fixed top-0 left-0 z-40 h-full w-56 bg-white border-r border-black shadow-lg transition-transform duration-200',
+        'fixed top-0 left-0 z-40 h-full w-56 border-r border-black shadow-lg transition-transform duration-200',
         menuOpen ? 'translate-x-0' : '-translate-x-full',
       ]"
+      :style="{ backgroundColor: themeSurface }"
     >
       <div class="p-4 border-b border-black font-bold">Menu</div>
       <button
         @click="setSection('expenses')"
-        class="w-full text-left px-4 py-3 border-b border-black hover:bg-gray-100"
+        class="w-full text-left px-4 py-3 border-b border-black hover:opacity-80"
+        :style="{ backgroundColor: themeSurface, color: themeText }"
       >
         Expenses
       </button>
       <button
         @click="setSection('categories')"
-        class="w-full text-left px-4 py-3 border-b border-black hover:bg-gray-100"
+        class="w-full text-left px-4 py-3 border-b border-black hover:opacity-80"
+        :style="{ backgroundColor: themeSurface, color: themeText }"
       >
         Categories
       </button>
       <button
         @click="setSection('history')"
-        class="w-full text-left px-4 py-3 border-b border-black hover:bg-gray-100"
+        class="w-full text-left px-4 py-3 border-b border-black hover:opacity-80"
+        :style="{ backgroundColor: themeSurface, color: themeText }"
       >
         History
       </button>
-      <template v-if="isSupabaseConfigured()">
-        <button
-          v-if="userIsAnonymous"
-          @click="openAuth"
-          class="w-full text-left px-4 py-3 border-b border-black hover:bg-gray-100 font-medium"
-        >
-          Sign in
-        </button>
-        <button
-          v-else
-          @click="signOut"
-          class="w-full text-left px-4 py-3 border-b border-black hover:bg-gray-100 font-medium text-red-600"
-        >
-          Sign out
-        </button>
-      </template>
+      <button
+        @click="setSection('theme')"
+        class="w-full text-left px-4 py-3 border-b border-black hover:opacity-80"
+        :style="{ backgroundColor: themeSurface, color: themeText }"
+      >
+        Theme
+      </button>
     </nav>
 
-    <!-- Auth modal -->
+    <!-- Auth modal (always default theme) -->
     <div
       v-if="showAuthScreen"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
       @click.self="closeAuth"
     >
       <div
-        class="bg-white rounded-lg border border-black shadow-xl max-w-sm w-full p-6"
+        class="rounded-lg border border-black shadow-xl max-w-sm w-full p-6 bg-white text-gray-900"
         @click.stop
       >
         <h2 class="text-xl font-bold mb-2">
           {{ authMode === "signup" ? "Create account" : "Sign in" }}
         </h2>
         <p class="text-sm text-gray-600 mb-4">Sync your data across devices</p>
-        <div class="space-y-4">
+        <div v-if="authLoading" class="py-8 text-center text-gray-600">
+          <div class="inline-block w-8 h-8 border-2 border-gray-400 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+          <p class="font-medium">Signing in...</p>
+        </div>
+        <div v-else class="space-y-4">
           <div>
             <label for="auth-email" class="block text-sm font-medium mb-1"
               >Email</label
@@ -511,7 +631,7 @@ export default {
           </button>
         </div>
         <p
-          v-if="authMessage"
+          v-if="authMessage && !authLoading"
           class="mt-4 text-sm"
           :class="
             authMessage.includes('verify') || authMessage.includes('created')
@@ -522,6 +642,34 @@ export default {
           {{ authMessage }}
         </p>
       </div>
+    </div>
+
+    <!-- Post sign-in loading -->
+    <div
+      v-if="postAuthLoading"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-white/90"
+    >
+      <div class="text-center">
+        <div class="inline-block w-10 h-10 border-2 border-gray-300 border-t-green-600 rounded-full animate-spin mb-4"></div>
+        <p class="text-lg font-medium text-gray-800">Loading your data...</p>
+      </div>
+    </div>
+
+    <!-- Success message -->
+    <div
+      v-if="authSuccessMessage"
+      :class="[
+        'mx-4 mt-4 p-3 text-white rounded flex items-center justify-between',
+        authSuccessMessage === 'Signed out.' ? 'bg-red-600' : 'bg-green-600',
+      ]"
+    >
+      <span>{{ authSuccessMessage }}</span>
+      <button
+        @click="authSuccessMessage = ''"
+        :class="authSuccessMessage === 'Signed out.' ? 'bg-red-800 px-2 py-1 rounded hover:bg-red-700' : 'bg-green-800 px-2 py-1 rounded hover:bg-green-700'"
+      >
+        ×
+      </button>
     </div>
 
     <!-- Error message -->
@@ -555,6 +703,7 @@ export default {
               step="0.01"
               placeholder="0.00"
               class="w-full p-2 border border-black rounded"
+              :style="{ backgroundColor: themeSurface, color: themeText }"
             />
           </div>
           <div class="flex-1">
@@ -564,7 +713,8 @@ export default {
             <select
               id="expense-category"
               v-model="selectedCategory"
-              class="w-full p-2 border border-black rounded bg-white"
+              class="w-full p-2 border border-black rounded"
+              :style="{ backgroundColor: themeSurface, color: themeText }"
             >
               <option value="">Select category</option>
               <option v-for="cat in categories" :key="cat" :value="cat">
@@ -580,7 +730,7 @@ export default {
             Submit
           </button>
         </div>
-        <p v-if="categories.length === 0" class="text-sm text-gray-600">
+        <p v-if="categories.length === 0" class="text-sm opacity-80">
           Add categories in the Categories section first.
         </p>
       </section>
@@ -594,6 +744,7 @@ export default {
             type="text"
             placeholder="New category name"
             class="flex-1 p-2 border border-black rounded"
+            :style="{ backgroundColor: themeSurface, color: themeText }"
             @keyup.enter="addCategory"
           />
           <button
@@ -603,11 +754,12 @@ export default {
             Add
           </button>
         </div>
-        <ul class="border border-black rounded divide-y divide-black">
+        <ul class="border border-black rounded divide-y divide-black overflow-hidden">
           <li
             v-for="cat in categories"
             :key="cat"
-            class="flex items-center justify-between p-2 bg-white"
+            class="flex items-center justify-between p-2"
+            :style="{ backgroundColor: themeSurface, color: themeText }"
           >
             <span class="font-medium">{{ cat }}</span>
             <button
@@ -619,7 +771,7 @@ export default {
             </button>
           </li>
         </ul>
-        <p v-if="categories.length === 0" class="text-sm text-gray-500">
+        <p v-if="categories.length === 0" class="text-sm opacity-80">
           No categories yet. Add one above.
         </p>
       </section>
@@ -627,6 +779,7 @@ export default {
       <!-- History section -->
       <section v-show="currentSection === 'history'" class="space-y-4">
         <h2 class="text-xl font-bold border-b border-black pb-2">History</h2>
+        <ExpensePieChart :expenses="filteredHistory" :text-color="themeText" />
         <div class="mb-3">
           <span class="block text-sm font-medium mb-2">Time</span>
           <div class="flex flex-wrap gap-2">
@@ -643,10 +796,9 @@ export default {
               @click="timeFilter = opt.value"
               :class="[
                 'px-3 py-1 rounded border border-black text-sm font-medium',
-                timeFilter === opt.value
-                  ? 'bg-black text-white'
-                  : 'bg-white hover:bg-gray-100',
+                timeFilter === opt.value ? 'bg-black text-white' : 'hover:opacity-90',
               ]"
+              :style="timeFilter !== opt.value ? { backgroundColor: themeSurface, color: themeText } : {}"
             >
               {{ opt.label }}
             </button>
@@ -659,10 +811,9 @@ export default {
               @click="historyFilter = 'all'"
               :class="[
                 'px-3 py-1 rounded border border-black text-sm font-medium',
-                historyFilter === 'all'
-                  ? 'bg-black text-white'
-                  : 'bg-white hover:bg-gray-100',
+                historyFilter === 'all' ? 'bg-black text-white' : 'hover:opacity-90',
               ]"
+              :style="historyFilter !== 'all' ? { backgroundColor: themeSurface, color: themeText } : {}"
             >
               All
             </button>
@@ -672,10 +823,9 @@ export default {
               @click="historyFilter = cat"
               :class="[
                 'px-3 py-1 rounded border border-black text-sm font-medium',
-                historyFilter === cat
-                  ? 'bg-black text-white'
-                  : 'bg-white hover:bg-gray-100',
+                historyFilter === cat ? 'bg-black text-white' : 'hover:opacity-90',
               ]"
+              :style="historyFilter !== cat ? { backgroundColor: themeSurface, color: themeText } : {}"
             >
               {{ cat }}
             </button>
@@ -687,14 +837,15 @@ export default {
           <li
             v-for="entry in filteredHistory"
             :key="entry.id"
-            class="flex items-center justify-between p-3 bg-white"
+            class="flex items-center justify-between p-3"
+            :style="{ backgroundColor: themeSurface, color: themeText }"
           >
             <div>
               <span class="font-bold">${{ entry.amount.toFixed(2) }}</span>
-              <span class="text-gray-600 ml-2">{{ entry.category }}</span>
+              <span class="ml-2 opacity-90">{{ entry.category }}</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-500">{{ entry.date }}</span>
+              <span class="text-sm opacity-75">{{ entry.date }}</span>
               <button
                 @click="deleteHistoryEntry(entry.id)"
                 class="text-red-600 hover:text-red-800 p-1 rounded border border-red-400"
@@ -715,6 +866,74 @@ export default {
           <template v-else>No expenses in this time range.</template>
         </p>
       </section>
+
+      <!-- Theme section -->
+      <section v-show="currentSection === 'theme'" class="space-y-4">
+        <div
+          class="flex items-center justify-between border-b border-black pb-2"
+        >
+          <h2 class="text-xl font-bold">Theme</h2>
+          <div class="flex items-center gap-2">
+            <button
+              @click="resetTheme"
+              class="text-sm font-medium px-3 py-1.5 rounded border border-black hover:opacity-80 bg-white text-gray-900"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+        <p class="text-sm opacity-80">
+          {{ themeSaveMessage || "Changes save automatically when you're signed in." }}
+        </p>
+        <div
+          class="space-y-4 border border-black rounded p-4"
+          :style="{ backgroundColor: themeSurface }"
+        >
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="text-sm font-medium w-28">Background</label>
+            <input
+              v-model="themeBg"
+              type="color"
+              class="w-12 h-12 rounded border-2 border-black cursor-pointer"
+              title="Background color"
+            />
+            <span class="text-sm">{{ themeBg }}</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="text-sm font-medium w-28">Text color</label>
+            <input
+              v-model="themeText"
+              type="color"
+              class="w-12 h-12 rounded border-2 border-black cursor-pointer"
+              title="Text color"
+            />
+            <span class="text-sm">{{ themeText }}</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="text-sm font-medium w-28">Cards & panels</label>
+            <input
+              v-model="themeSurface"
+              type="color"
+              class="w-12 h-12 rounded border-2 border-black cursor-pointer"
+              title="Surface color (header, menu, cards)"
+            />
+            <span class="text-sm">{{ themeSurface }}</span>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 </template>
+
+<style scoped>
+/* Force theme on inputs/selects so text and background follow theme */
+input,
+select {
+  background-color: var(--theme-surface) !important;
+  color: var(--theme-text) !important;
+}
+input::placeholder {
+  color: var(--theme-text);
+  opacity: 0.7;
+}
+</style>
