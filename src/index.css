@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Fill viewport so Vue app covers whole screen (no index.html body showing on mobile) */
+html,
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh; /* dynamic viewport: better on iOS when browser chrome shows/hides */
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  background: #f3f4f6; /* fallback to match default themeBg if app hasn't painted yet */
+}
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
