@@ -14,10 +14,14 @@ create table if not exists public.expenses (
   user_id uuid not null references auth.users(id) on delete cascade,
   amount numeric not null,
   category text not null,
+  name text,
   date text not null,
   timestamp bigint not null,
   created_at timestamptz default now()
 );
+
+-- If table already existed without name, run this in SQL Editor:
+-- alter table public.expenses add column if not exists name text;
 
 -- Row Level Security: users only see their own data
 alter table public.categories enable row level security;

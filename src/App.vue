@@ -1,9 +1,11 @@
 <script>
 import { supabase } from "./supabase.js";
 import ExpensePieChart from "./ExpensePieChart.vue";
+import { VueDatePicker } from "@vuepic/vue-datepicker";
+import "@vuepic/vue-datepicker/dist/main.css";
 
 export default {
-  components: { ExpensePieChart },
+  components: { ExpensePieChart, VueDatePicker },
   data() {
     return {
       menuOpen: false,
@@ -15,10 +17,18 @@ export default {
         ? JSON.parse(localStorage.getItem("expenseHistory"))
         : [],
       newExpenseAmount: "",
+      newExpenseName: "",
       selectedCategory: "",
       newCategoryName: "",
+      categoryDropdownOpen: false,
+      inlineCategoryName: "",
+      showInlineCategory: false,
       historyFilter: "all",
       timeFilter: "all",
+      customRangeType: "day",
+      customDay: new Date(),
+      customMonth: { month: new Date().getMonth(), year: new Date().getFullYear() },
+      customYear: new Date().getFullYear(),
       errorMessage: "",
       nextId: localStorage.getItem("expenseNextId")
         ? parseInt(localStorage.getItem("expenseNextId"), 10)
@@ -94,21 +104,70 @@ export default {
       });
       return fromList;
     },
+    timeFilterOptions() {
+      return [
+        { value: "all", label: "All" },
+        { value: "day", label: "D" },
+        { value: "week", label: "W" },
+        { value: "month", label: "M" },
+        { value: "year", label: "Y" },
+        { value: "custom", label: "Custom", icon: "calendar" },
+      ];
+    },
+    filteredHistoryTotal() {
+      return this.filteredHistory.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    },
     filteredHistory() {
       let list = this.expenseHistory;
       if (this.historyFilter !== "all") {
         list = list.filter((e) => e.category === this.historyFilter);
       }
       if (this.timeFilter === "all") return list;
-      const now = Date.now();
-      const ms = { day: 1, week: 7, month: 30, "6months": 180, year: 365 };
-      const days = ms[this.timeFilter] || 0;
-      const cutoff = now - days * 24 * 60 * 60 * 1000;
-      return list.filter((e) => {
-        const t =
-          e.timestamp != null ? e.timestamp : new Date(e.date).getTime();
-        return !isNaN(t) && t >= cutoff;
-      });
+      const timeFilter = this.timeFilter;
+      const ms = { day: 1, week: 7, month: 30, year: 365 };
+      if (ms[timeFilter] != null) {
+        const now = Date.now();
+        const cutoff = now - ms[timeFilter] * 24 * 60 * 60 * 1000;
+        return list.filter((e) => {
+          const t =
+            e.timestamp != null ? e.timestamp : new Date(e.date).getTime();
+          return !isNaN(t) && t >= cutoff;
+        });
+      }
+      if (timeFilter === "custom") {
+        const type = this.customRangeType;
+        if (type === "day" && this.customDay) {
+          const d = new Date(this.customDay);
+          const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+          const end = start + 24 * 60 * 60 * 1000 - 1;
+          return list.filter((e) => {
+            const t =
+              e.timestamp != null ? e.timestamp : new Date(e.date).getTime();
+            return !isNaN(t) && t >= start && t <= end;
+          });
+        }
+        if (type === "month" && this.customMonth && this.customMonth.year != null && this.customMonth.month != null) {
+          const { year: y, month: m } = this.customMonth;
+          const start = new Date(y, m, 1).getTime();
+          const end = new Date(y, m + 1, 0, 23, 59, 59, 999).getTime();
+          return list.filter((e) => {
+            const t =
+              e.timestamp != null ? e.timestamp : new Date(e.date).getTime();
+            return !isNaN(t) && t >= start && t <= end;
+          });
+        }
+        if (type === "year" && this.customYear) {
+          const y = Number(this.customYear);
+          const start = new Date(y, 0, 1).getTime();
+          const end = new Date(y, 11, 31, 23, 59, 59, 999).getTime();
+          return list.filter((e) => {
+            const t =
+              e.timestamp != null ? e.timestamp : new Date(e.date).getTime();
+            return !isNaN(t) && t >= start && t <= end;
+          });
+        }
+      }
+      return list;
     },
   },
   watch: {
@@ -170,10 +229,12 @@ export default {
         return;
       }
       const now = new Date();
+      const name = (this.newExpenseName || "").trim() || undefined;
       const expense = {
         id: this.nextId++,
         amount: parseFloat(amount.toFixed(2)),
         category: this.selectedCategory,
+        name,
         date: now.toLocaleDateString(),
         timestamp: now.getTime(),
       };
@@ -189,6 +250,7 @@ export default {
       }
       this.expenseHistory.unshift(expense);
       this.newExpenseAmount = "";
+      this.newExpenseName = "";
       this.selectedCategory = "";
       this.errorMessage = "";
     },
@@ -220,6 +282,30 @@ export default {
     deleteCategory(name) {
       this.categories = this.categories.filter((c) => c !== name);
       if (this.syncEnabled) this.deleteCategoryFromSupabase(name);
+      if (this.selectedCategory === name) this.selectedCategory = "";
+    },
+    scheduleCategoryDropdownClose() {
+      if (!this.categoryDropdownOpen) return;
+      this.$nextTick(() => {
+        setTimeout(() => {
+          document.addEventListener("click", this.closeCategoryDropdown);
+        }, 0);
+      });
+    },
+    closeCategoryDropdown() {
+      this.categoryDropdownOpen = false;
+      this.showInlineCategory = false;
+      this.inlineCategoryName = "";
+      document.removeEventListener("click", this.closeCategoryDropdown);
+    },
+    addCategoryFromDropdown() {
+      const name = (this.inlineCategoryName || "").trim();
+      if (!name) return;
+      this.newCategoryName = name;
+      this.addCategory();
+      this.inlineCategoryName = "";
+      this.showInlineCategory = false;
+      if (this.categories.includes(name)) this.selectedCategory = name;
     },
     deleteHistoryEntry(id) {
       this.expenseHistory = this.expenseHistory.filter((e) => e.id !== id);
@@ -329,7 +415,7 @@ export default {
           .order("created_at"),
         supabase
           .from("expenses")
-          .select("id, amount, category, date, timestamp")
+          .select("id, amount, category, name, date, timestamp")
           .eq("user_id", uid)
           .order("timestamp", { ascending: false }),
       ]);
@@ -338,6 +424,7 @@ export default {
         id: r.id,
         amount: Number(r.amount),
         category: r.category,
+        name: r.name || undefined,
         date: r.date,
         timestamp: r.timestamp,
       }));
@@ -400,6 +487,7 @@ export default {
           user_id: uid,
           amount: expense.amount,
           category: expense.category,
+          name: expense.name ?? null,
           date: expense.date,
           timestamp: expense.timestamp,
         })
@@ -484,7 +572,7 @@ export default {
           :style="{ backgroundColor: themeText }"
         ></span>
       </button>
-      <h1 class="text-lg font-bold">Expense Tracker</h1>
+      <h1 class="text-lg font-bold">Spendings Tracker</h1>
       <div class="flex items-center gap-2">
         <span v-if="syncLoading" class="text-xs opacity-70">...</span>
         <span
@@ -534,21 +622,14 @@ export default {
         class="w-full text-left px-4 py-3 border-b border-black hover:opacity-80"
         :style="{ backgroundColor: themeSurface, color: themeText }"
       >
-        Expenses
-      </button>
-      <button
-        @click="setSection('categories')"
-        class="w-full text-left px-4 py-3 border-b border-black hover:opacity-80"
-        :style="{ backgroundColor: themeSurface, color: themeText }"
-      >
-        Categories
+        Spendings
       </button>
       <button
         @click="setSection('history')"
         class="w-full text-left px-4 py-3 border-b border-black hover:opacity-80"
         :style="{ backgroundColor: themeSurface, color: themeText }"
       >
-        History
+        Graphs
       </button>
       <button
         @click="setSection('theme')"
@@ -728,131 +809,260 @@ export default {
 
     <!-- Main content -->
     <main class="p-4 max-w-xl mx-auto">
-      <!-- Expenses section -->
-      <section v-show="currentSection === 'expenses'" class="space-y-4">
-        <h2 class="text-xl font-bold border-b border-black pb-2">
-          Add expense
-        </h2>
-        <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
-          <div class="flex-1">
-            <label for="expense-amount" class="block text-sm font-medium mb-1"
-              >Amount ($)</label
-            >
-            <input
-              id="expense-amount"
-              v-model="newExpenseAmount"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0.00"
-              class="w-full p-2 border border-black rounded"
-              :style="{ backgroundColor: themeSurface, color: themeText }"
-            />
+      <!-- Spendings section -->
+      <section v-show="currentSection === 'expenses'" class="flex flex-col gap-5 w-full max-w-xl">
+        <!-- Add spending block -->
+        <div class="flex flex-col gap-4">
+          <h2 class="text-lg font-semibold">Add spending</h2>
+          <div class="flex flex-col gap-4">
+            <div>
+              <label for="expense-name" class="block text-sm font-medium mb-1 opacity-90">Name (optional)</label>
+              <input
+                id="expense-name"
+                v-model="newExpenseName"
+                type="text"
+                placeholder="e.g. Starbucks"
+                class="w-full p-2.5 rounded-lg"
+                :style="{ backgroundColor: themeSurface, color: themeText }"
+              />
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+              <div>
+                <label for="expense-amount" class="block text-sm font-medium mb-1 opacity-90">Amount ($)</label>
+                <input
+                  id="expense-amount"
+                  v-model="newExpenseAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  class="w-full p-2.5 rounded-lg"
+                  :style="{ backgroundColor: themeSurface, color: themeText }"
+                />
+              </div>
+              <div class="relative" ref="categoryDropdownRef">
+                <label class="block text-sm font-medium mb-1 opacity-90">Category</label>
+                <button
+                  type="button"
+                  @click.stop="categoryDropdownOpen = !categoryDropdownOpen; scheduleCategoryDropdownClose()"
+                  class="w-full p-2.5 rounded-lg text-left flex items-center justify-between"
+                  :style="{ backgroundColor: themeSurface, color: themeText }"
+                >
+                  <span>{{ selectedCategory || "Select category" }}</span>
+                  <i class="fa-solid fa-chevron-down text-sm opacity-70"></i>
+                </button>
+                <div
+                  v-show="categoryDropdownOpen"
+                  @click.stop
+                  class="absolute left-0 right-0 top-full mt-1 rounded-lg shadow-lg z-30 overflow-hidden"
+                  :style="{ backgroundColor: themeSurface, color: themeText }"
+                >
+                  <div class="flex items-center justify-end p-2">
+                    <button
+                      type="button"
+                      @click="showInlineCategory = true"
+                      class="p-1.5 rounded-full text-green-600 hover:opacity-80"
+                      aria-label="Add category"
+                      title="Add category"
+                    >
+                      <i class="fa-solid fa-plus"></i>
+                    </button>
+                  </div>
+                  <div v-if="showInlineCategory" class="p-2 flex gap-2">
+                    <form @submit.prevent="addCategoryFromDropdown" class="flex-1 flex gap-2 min-w-0">
+                      <input
+                        v-model="inlineCategoryName"
+                        type="text"
+                        placeholder="New category"
+                        class="flex-1 p-1.5 rounded text-sm min-w-0"
+                        :style="{ backgroundColor: themeSurface, color: themeText }"
+                      />
+                    </form>
+                  </div>
+                  <ul class="max-h-48 overflow-y-auto py-1">
+                    <li
+                      v-for="cat in categories"
+                      :key="cat"
+                      class="flex items-center justify-between px-3 py-2 cursor-pointer hover:opacity-90 border-b border-black/20 last:border-b-0"
+                      :style="{ backgroundColor: themeSurface, color: themeText }"
+                      @click="selectedCategory = cat; categoryDropdownOpen = false"
+                    >
+                      <span>{{ cat }}</span>
+                      <button type="button" @click.stop="deleteCategory(cat)" class="p-1 text-red-600 rounded opacity-80 hover:opacity-100" aria-label="Remove category">
+                        <i class="fa-solid fa-times text-sm"></i>
+                      </button>
+                    </li>
+                  </ul>
+                  <p v-if="categories.length === 0" class="px-3 py-2 text-sm opacity-80">No categories. Use + to add one.</p>
+                </div>
+              </div>
+              <button
+                @click="addExpense"
+                class="p-2.5 px-4 bg-green-500 text-white font-medium rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="!newExpenseAmount || !selectedCategory"
+              >
+                Submit
+              </button>
+            </div>
+            <p v-if="categories.length === 0" class="text-sm opacity-80">Add a category using the + in the Category dropdown.</p>
           </div>
-          <div class="flex-1">
-            <label for="expense-category" class="block text-sm font-medium mb-1"
-              >Category</label
-            >
-            <select
-              id="expense-category"
-              v-model="selectedCategory"
-              class="w-full p-2 border border-black rounded"
-              :style="{ backgroundColor: themeSurface, color: themeText }"
-            >
-              <option value="">Select category</option>
-              <option v-for="cat in categories" :key="cat" :value="cat">
-                {{ cat }}
-              </option>
-            </select>
-          </div>
-          <button
-            @click="addExpense"
-            class="p-2 bg-green-500 text-white font-medium rounded border border-black hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="!newExpenseAmount || !selectedCategory"
-          >
-            Submit
-          </button>
         </div>
-        <p v-if="categories.length === 0" class="text-sm opacity-80">
-          Add categories in the Categories section first.
-        </p>
+
+        <!-- History block -->
+        <div class="flex flex-col gap-4">
+          <h2 class="text-lg font-semibold">History</h2>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-medium opacity-90">Time</span>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="opt in timeFilterOptions"
+                  :key="'exp-time-' + opt.value"
+                  @click="timeFilter = opt.value"
+                  :class="['px-2.5 py-1 rounded-md text-sm font-medium flex items-center justify-center min-w-[2rem]', timeFilter === opt.value ? 'bg-black text-white' : 'hover:opacity-90']"
+                  :style="timeFilter !== opt.value ? { backgroundColor: themeSurface, color: themeText } : {}"
+                  :aria-label="opt.value === 'custom' ? 'Custom date' : null"
+                >
+                  <i v-if="opt.icon === 'calendar'" class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+                  <span v-else>{{ opt.label }}</span>
+                </button>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-medium opacity-90">Category</span>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  @click="historyFilter = 'all'"
+                  :class="['px-2.5 py-1 rounded-md text-sm font-medium', historyFilter === 'all' ? 'bg-black text-white' : 'hover:opacity-90']"
+                  :style="historyFilter !== 'all' ? { backgroundColor: themeSurface, color: themeText } : {}"
+                >
+                  All
+                </button>
+                <button
+                  v-for="cat in categoriesForFilter"
+                  :key="'exp-filter-' + cat"
+                  @click="historyFilter = cat"
+                  :class="['px-2.5 py-1 rounded-md text-sm font-medium', historyFilter === cat ? 'bg-black text-white' : 'hover:opacity-90']"
+                  :style="historyFilter !== cat ? { backgroundColor: themeSurface, color: themeText } : {}"
+                >
+                  {{ cat }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <p class="text-sm font-medium">
+            Total spent{{ historyFilter === 'all' ? '' : ` for "${historyFilter}"` }}: ${{ filteredHistoryTotal.toFixed(2) }}
+          </p>
+          <div v-if="timeFilter === 'custom'" class="p-3 rounded-lg w-fit" :style="{ backgroundColor: themeSurface, color: themeText }">
+            <div class="flex flex-wrap gap-2 mb-3">
+              <button
+                v-for="t in ['day', 'month', 'year']"
+                :key="'exp-custom-' + t"
+                @click="customRangeType = t"
+                :class="['px-2.5 py-1 rounded-md text-sm font-medium', customRangeType === t ? 'bg-black text-white' : 'hover:opacity-90']"
+                :style="customRangeType !== t ? { backgroundColor: themeSurface, color: themeText } : {}"
+              >
+                {{ t === 'day' ? 'Pick day' : t === 'month' ? 'Pick month' : 'Pick year' }}
+              </button>
+            </div>
+            <div class="w-fit">
+              <VueDatePicker v-if="customRangeType === 'day'" :key="'day'" v-model="customDay" inline auto-apply :enable-time-picker="false" />
+              <VueDatePicker v-else-if="customRangeType === 'month'" :key="'month'" v-model="customMonth" month-picker inline auto-apply />
+              <VueDatePicker v-else-if="customRangeType === 'year'" :key="'year'" v-model="customYear" year-picker inline auto-apply />
+            </div>
+          </div>
+          <ul class="rounded-lg overflow-hidden border border-black/20 divide-y divide-black/10">
+            <li
+              v-for="entry in filteredHistory"
+              :key="'exp-' + entry.id"
+              class="flex items-center justify-between p-3"
+              :style="{ backgroundColor: themeSurface, color: themeText }"
+            >
+              <div>
+                <span v-if="entry.name" class="font-medium">{{ entry.name }}</span>
+                <span :class="{ 'ml-2': entry.name }">${{ entry.amount.toFixed(2) }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm opacity-75">{{ entry.date }}</span>
+                <button @click="deleteHistoryEntry(entry.id)" class="p-1 rounded text-red-600 hover:opacity-80" aria-label="Delete entry">×</button>
+              </div>
+            </li>
+          </ul>
+          <p v-if="filteredHistory.length === 0" class="text-sm opacity-80">
+            <template v-if="expenseHistory.length === 0">No spendings yet.</template>
+            <template v-else-if="historyFilter !== 'all'">No spendings in this category.</template>
+            <template v-else>No spendings in this time range.</template>
+          </p>
+        </div>
       </section>
 
-      <!-- Categories section -->
-      <section v-show="currentSection === 'categories'" class="space-y-4">
-        <h2 class="text-xl font-bold border-b border-black pb-2">Categories</h2>
-        <div class="flex gap-2">
-          <input
-            v-model="newCategoryName"
-            type="text"
-            placeholder="New category name"
-            class="flex-1 p-2 border border-black rounded"
-            :style="{ backgroundColor: themeSurface, color: themeText }"
-            @keyup.enter="addCategory"
-          />
-          <button
-            @click="addCategory"
-            class="px-4 py-2 bg-blue-500 text-white font-medium rounded border border-black hover:bg-blue-600"
-          >
-            Add
-          </button>
-        </div>
-        <ul
-          class="border border-black rounded divide-y divide-black overflow-hidden"
-        >
-          <li
-            v-for="cat in categories"
-            :key="cat"
-            class="flex items-center justify-between p-2"
-            :style="{ backgroundColor: themeSurface, color: themeText }"
-          >
-            <span class="font-medium">{{ cat }}</span>
-            <button
-              @click="deleteCategory(cat)"
-              class="text-red-600 hover:text-red-800 px-2 py-1 border border-red-500 rounded text-sm"
-              aria-label="Delete category"
-            >
-              Delete
-            </button>
-          </li>
-        </ul>
-        <p v-if="categories.length === 0" class="text-sm opacity-80">
-          No categories yet. Add one above.
-        </p>
-      </section>
-
-      <!-- History section -->
+      <!-- Graphs section -->
       <section v-show="currentSection === 'history'" class="space-y-4">
-        <h2 class="text-xl font-bold border-b border-black pb-2">History</h2>
+        <h2 class="text-xl font-bold border-b border-black pb-2">Graphs</h2>
         <ExpensePieChart :expenses="filteredHistory" :text-color="themeText" />
         <div class="mb-3">
           <span class="block text-sm font-medium mb-2">Time</span>
           <div class="flex flex-wrap gap-2">
             <button
-              v-for="opt in [
-                { value: 'all', label: 'All' },
-                { value: 'day', label: 'Day' },
-                { value: 'week', label: 'Week' },
-                { value: 'month', label: 'Month' },
-                { value: '6months', label: '6 Months' },
-                { value: 'year', label: 'Year' },
-              ]"
+              v-for="opt in timeFilterOptions"
               :key="'time-' + opt.value"
               @click="timeFilter = opt.value"
               :class="[
-                'px-3 py-1 rounded border border-black text-sm font-medium',
-                timeFilter === opt.value
-                  ? 'bg-black text-white'
-                  : 'hover:opacity-90',
+                'px-3 py-1 rounded border border-black text-sm font-medium flex items-center justify-center min-w-[2rem]',
+                timeFilter === opt.value ? 'bg-black text-white' : 'hover:opacity-90',
               ]"
-              :style="
-                timeFilter !== opt.value
-                  ? { backgroundColor: themeSurface, color: themeText }
-                  : {}
-              "
+              :style="timeFilter !== opt.value ? { backgroundColor: themeSurface, color: themeText } : {}"
+              :aria-label="opt.value === 'custom' ? 'Custom date' : null"
             >
-              {{ opt.label }}
+              <i v-if="opt.icon === 'calendar'" class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+              <span v-else>{{ opt.label }}</span>
             </button>
+          </div>
+          <div
+            v-if="timeFilter === 'custom'"
+            class="mt-3 p-3 rounded border border-black w-fit"
+            :style="{ backgroundColor: themeSurface, color: themeText }"
+          >
+            <div class="flex flex-wrap gap-2 mb-3">
+              <button
+                v-for="t in ['day', 'month', 'year']"
+                :key="'graph-custom-' + t"
+                @click="customRangeType = t"
+                :class="[
+                  'px-3 py-1 rounded border border-black text-sm font-medium',
+                  customRangeType === t ? 'bg-black text-white' : 'hover:opacity-90',
+                ]"
+                :style="customRangeType !== t ? { backgroundColor: themeSurface, color: themeText } : {}"
+              >
+                {{ t === 'day' ? 'Pick day' : t === 'month' ? 'Pick month' : 'Pick year' }}
+              </button>
+            </div>
+            <div class="w-fit">
+              <VueDatePicker
+                v-if="customRangeType === 'day'"
+                :key="'day'"
+                v-model="customDay"
+                inline
+                auto-apply
+                :enable-time-picker="false"
+              />
+              <VueDatePicker
+                v-else-if="customRangeType === 'month'"
+                :key="'month'"
+                v-model="customMonth"
+                month-picker
+                inline
+                auto-apply
+              />
+              <VueDatePicker
+                v-else-if="customRangeType === 'year'"
+                :key="'year'"
+                v-model="customYear"
+                year-picker
+                inline
+                auto-apply
+              />
+            </div>
           </div>
         </div>
         <div class="mb-4">
@@ -894,6 +1104,9 @@ export default {
             </button>
           </div>
         </div>
+        <p class="text-sm font-medium mb-2">
+          Total spent{{ historyFilter === 'all' ? '' : ` for "${historyFilter}"` }}: ${{ filteredHistoryTotal.toFixed(2) }}
+        </p>
         <ul
           class="border border-black rounded divide-y divide-black overflow-hidden"
         >
@@ -904,8 +1117,12 @@ export default {
             :style="{ backgroundColor: themeSurface, color: themeText }"
           >
             <div>
-              <span class="font-bold">${{ entry.amount.toFixed(2) }}</span>
-              <span class="ml-2 opacity-90">{{ entry.category }}</span>
+              <span v-if="entry.name" class="font-medium">{{
+                entry.name
+              }}</span>
+              <span :class="{ 'ml-2': entry.name }"
+                >${{ entry.amount.toFixed(2) }}</span
+              >
             </div>
             <div class="flex items-center gap-2">
               <span class="text-sm opacity-75">{{ entry.date }}</span>
@@ -919,14 +1136,14 @@ export default {
             </div>
           </li>
         </ul>
-        <p v-if="filteredHistory.length === 0" class="text-sm text-gray-500">
+        <p v-if="filteredHistory.length === 0" class="text-sm opacity-80">
           <template v-if="expenseHistory.length === 0"
-            >No expenses yet.</template
+            >No spendings yet.</template
           >
           <template v-else-if="historyFilter !== 'all'"
-            >No expenses in this category.</template
+            >No spendings in this category.</template
           >
-          <template v-else>No expenses in this time range.</template>
+          <template v-else>No spendings in this time range.</template>
         </p>
       </section>
 

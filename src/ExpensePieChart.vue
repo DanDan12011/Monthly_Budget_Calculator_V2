@@ -59,8 +59,8 @@ export default {
           },
         },
         tooltip: {
-          titleColor: props.textColor,
-          bodyColor: props.textColor,
+          titleColor: "white",
+          bodyColor: "white",
           callbacks: {
             label(context) {
               const total = context.dataset.data.reduce((a, b) => a + b, 0);
